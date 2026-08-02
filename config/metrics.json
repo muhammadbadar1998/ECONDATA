@@ -1,7 +1,7 @@
 {
   "pipeline_settings": {
     "default_start_year": 1960,
-    "default_end_year": 2030,
+    "default_end_year": 2035,
     "include_forecasts": true,
     "db_batch_size": 100
   },
@@ -17,7 +17,7 @@
       "frequency": "Annual",
       "description": "GDP at purchaser's prices is the sum of gross value added by all resident producers in the economy plus any product taxes and minus any subsidies not included in the value of the products.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "gdp_growth",
@@ -30,7 +30,7 @@
       "frequency": "Annual",
       "description": "Annual percentage growth rate of GDP at market prices based on constant local currency.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "inflation_cpi",
@@ -43,7 +43,7 @@
       "frequency": "Annual",
       "description": "Inflation as measured by the consumer price index reflects the annual percentage change in the cost to the average consumer of acquiring a basket of goods and services.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "unemployment_rate",
@@ -56,7 +56,7 @@
       "frequency": "Annual",
       "description": "Unemployment refers to the share of the labor force that is without work but available for and seeking employment.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "population",
@@ -69,7 +69,7 @@
       "frequency": "Annual",
       "description": "Total population counts all residents regardless of legal status or citizenship.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "current_account_balance",
@@ -82,7 +82,7 @@
       "frequency": "Annual",
       "description": "Current account balance is the sum of net exports of goods and services, net primary income, and net secondary income relative to GDP.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "govt_debt_gdp",
@@ -95,7 +95,7 @@
       "frequency": "Annual",
       "description": "Debt is the entire stock of direct government fixed-term contractual obligations to others outstanding on a particular date.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2035
     },
     {
       "metric_code": "forecast_gdp_growth_gep",
@@ -108,7 +108,7 @@
       "frequency": "Annual",
       "description": "Medium-term annual real GDP growth rate forecast from World Bank Global Economic Prospects.",
       "start_year": 2024,
-      "end_year": 2030
+      "end_year": 2035
     }
   ]
 }
