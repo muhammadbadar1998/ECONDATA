@@ -1,0 +1,267 @@
+country_code,country_name,provider,dataset,is_aggregate
+ABW,Aruba,WB,WDI,False
+AFG,Afghanistan,WB,WDI,False
+AGO,Angola,WB,WDI,False
+ALB,Albania,WB,WDI,False
+AND,Andorra,WB,WDI,False
+ARE,United Arab Emirates,WB,WDI,False
+ARG,Argentina,WB,WDI,False
+ARM,Armenia,WB,WDI,False
+ASM,American Samoa,WB,WDI,False
+ATG,Antigua and Barbuda,WB,WDI,False
+AUS,Australia,WB,WDI,False
+AUT,Austria,WB,WDI,False
+AZE,Azerbaijan,WB,WDI,False
+BDI,Burundi,WB,WDI,False
+BEL,Belgium,WB,WDI,False
+BEN,Benin,WB,WDI,False
+BFA,Burkina Faso,WB,WDI,False
+BGD,Bangladesh,WB,WDI,False
+BGR,Bulgaria,WB,WDI,False
+BHR,Bahrain,WB,WDI,False
+BHS,"Bahamas, The",WB,WDI,False
+BIH,Bosnia and Herzegovina,WB,WDI,False
+BLR,Belarus,WB,WDI,False
+BLZ,Belize,WB,WDI,False
+BMU,Bermuda,WB,WDI,False
+BOL,Bolivia,WB,WDI,False
+BRA,Brazil,WB,WDI,False
+BRB,Barbados,WB,WDI,False
+BRN,Brunei Darussalam,WB,WDI,False
+BTN,Bhutan,WB,WDI,False
+BWA,Botswana,WB,WDI,False
+CAF,Central African Republic,WB,WDI,False
+CAN,Canada,WB,WDI,False
+CHE,Switzerland,WB,WDI,False
+CHI,Channel Islands,WB,WDI,False
+CHL,Chile,WB,WDI,False
+CHN,China,WB,WDI,False
+CIV,Cote d'Ivoire,WB,WDI,False
+CMR,Cameroon,WB,WDI,False
+COD,"Congo, Dem. Rep.",WB,WDI,False
+COG,"Congo, Rep.",WB,WDI,False
+COL,Colombia,WB,WDI,False
+COM,Comoros,WB,WDI,False
+CPV,Cabo Verde,WB,WDI,False
+CRI,Costa Rica,WB,WDI,False
+CSS,Caribbean small states,WB,WDI,False
+CUB,Cuba,WB,WDI,False
+CUW,Curacao,WB,WDI,False
+CYM,Cayman Islands,WB,WDI,False
+CYP,Cyprus,WB,WDI,False
+CZE,Czechia,WB,WDI,False
+DEU,Germany,WB,WDI,False
+DJI,Djibouti,WB,WDI,False
+DMA,Dominica,WB,WDI,False
+DNK,Denmark,WB,WDI,False
+DOM,Dominican Republic,WB,WDI,False
+DZA,Algeria,WB,WDI,False
+ECS,Europe & Central Asia,WB,WDI,False
+EGY,"Egypt, Arab Rep.",WB,WDI,False
+ERI,Eritrea,WB,WDI,False
+ESP,Spain,WB,WDI,False
+EST,Estonia,WB,WDI,False
+ETH,Ethiopia,WB,WDI,False
+FIN,Finland,WB,WDI,False
+FJI,Fiji,WB,WDI,False
+FRA,France,WB,WDI,False
+FRO,Faroe Islands,WB,WDI,False
+FSM,"Micronesia, Fed. Sts.",WB,WDI,False
+GAB,Gabon,WB,WDI,False
+GBR,United Kingdom,WB,WDI,False
+GEO,Georgia,WB,WDI,False
+GHA,Ghana,WB,WDI,False
+GIB,Gibraltar,WB,WDI,False
+GIN,Guinea,WB,WDI,False
+GMB,"Gambia, The",WB,WDI,False
+GNB,Guinea-Bissau,WB,WDI,False
+GNQ,Equatorial Guinea,WB,WDI,False
+GRC,Greece,WB,WDI,False
+GRD,Grenada,WB,WDI,False
+GRL,Greenland,WB,WDI,False
+GTM,Guatemala,WB,WDI,False
+GUM,Guam,WB,WDI,False
+GUY,Guyana,WB,WDI,False
+HKG,"Hong Kong SAR, China",WB,WDI,False
+HND,Honduras,WB,WDI,False
+HRV,Croatia,WB,WDI,False
+HTI,Haiti,WB,WDI,False
+HUN,Hungary,WB,WDI,False
+IDN,Indonesia,WB,WDI,False
+IMN,Isle of Man,WB,WDI,False
+IND,India,WB,WDI,False
+INX,Not classified,WB,WDI,False
+IRL,Ireland,WB,WDI,False
+IRN,"Iran, Islamic Rep.",WB,WDI,False
+IRQ,Iraq,WB,WDI,False
+ISL,Iceland,WB,WDI,False
+ISR,Israel,WB,WDI,False
+ITA,Italy,WB,WDI,False
+JAM,Jamaica,WB,WDI,False
+JOR,Jordan,WB,WDI,False
+JPN,Japan,WB,WDI,False
+KAZ,Kazakhstan,WB,WDI,False
+KEN,Kenya,WB,WDI,False
+KGZ,Kyrgyz Republic,WB,WDI,False
+KHM,Cambodia,WB,WDI,False
+KIR,Kiribati,WB,WDI,False
+KNA,St. Kitts and Nevis,WB,WDI,False
+KOR,"Korea, Rep.",WB,WDI,False
+KWT,Kuwait,WB,WDI,False
+LAO,Lao PDR,WB,WDI,False
+LBN,Lebanon,WB,WDI,False
+LBR,Liberia,WB,WDI,False
+LBY,Libya,WB,WDI,False
+LCA,St. Lucia,WB,WDI,False
+LIE,Liechtenstein,WB,WDI,False
+LKA,Sri Lanka,WB,WDI,False
+LMC,Lower middle income,WB,WDI,False
+LSO,Lesotho,WB,WDI,False
+LTU,Lithuania,WB,WDI,False
+LUX,Luxembourg,WB,WDI,False
+LVA,Latvia,WB,WDI,False
+MAC,"Macao SAR, China",WB,WDI,False
+MAF,St. Martin (French part),WB,WDI,False
+MAR,Morocco,WB,WDI,False
+MCO,Monaco,WB,WDI,False
+MDA,Moldova,WB,WDI,False
+MDG,Madagascar,WB,WDI,False
+MDV,Maldives,WB,WDI,False
+MEX,Mexico,WB,WDI,False
+MHL,Marshall Islands,WB,WDI,False
+MKD,North Macedonia,WB,WDI,False
+MLI,Mali,WB,WDI,False
+MLT,Malta,WB,WDI,False
+MMR,Myanmar,WB,WDI,False
+MNE,Montenegro,WB,WDI,False
+MNG,Mongolia,WB,WDI,False
+MNP,Northern Mariana Islands,WB,WDI,False
+MOZ,Mozambique,WB,WDI,False
+MRT,Mauritania,WB,WDI,False
+MUS,Mauritius,WB,WDI,False
+MWI,Malawi,WB,WDI,False
+MYS,Malaysia,WB,WDI,False
+NAM,Namibia,WB,WDI,False
+NCL,New Caledonia,WB,WDI,False
+NER,Niger,WB,WDI,False
+NGA,Nigeria,WB,WDI,False
+NIC,Nicaragua,WB,WDI,False
+NLD,Netherlands,WB,WDI,False
+NOR,Norway,WB,WDI,False
+NPL,Nepal,WB,WDI,False
+NRU,Nauru,WB,WDI,False
+NZL,New Zealand,WB,WDI,False
+OMN,Oman,WB,WDI,False
+PAK,Pakistan,WB,WDI,False
+PAN,Panama,WB,WDI,False
+PER,Peru,WB,WDI,False
+PHL,Philippines,WB,WDI,False
+PLW,Palau,WB,WDI,False
+PNG,Papua New Guinea,WB,WDI,False
+POL,Poland,WB,WDI,False
+PRI,Puerto Rico,WB,WDI,False
+PRK,"Korea, Dem. People's Rep.",WB,WDI,False
+PRT,Portugal,WB,WDI,False
+PRY,Paraguay,WB,WDI,False
+PSE,West Bank and Gaza,WB,WDI,False
+PYF,French Polynesia,WB,WDI,False
+QAT,Qatar,WB,WDI,False
+ROU,Romania,WB,WDI,False
+RUS,Russian Federation,WB,WDI,False
+RWA,Rwanda,WB,WDI,False
+SAU,Saudi Arabia,WB,WDI,False
+SDN,Sudan,WB,WDI,False
+SEN,Senegal,WB,WDI,False
+SGP,Singapore,WB,WDI,False
+SLB,Solomon Islands,WB,WDI,False
+SLE,Sierra Leone,WB,WDI,False
+SLV,El Salvador,WB,WDI,False
+SMR,San Marino,WB,WDI,False
+SOM,Somalia,WB,WDI,False
+SRB,Serbia,WB,WDI,False
+SSD,South Sudan,WB,WDI,False
+SST,Small states,WB,WDI,False
+STP,Sao Tome and Principe,WB,WDI,False
+SUR,Suriname,WB,WDI,False
+SVK,Slovak Republic,WB,WDI,False
+SVN,Slovenia,WB,WDI,False
+SWE,Sweden,WB,WDI,False
+SWZ,Eswatini,WB,WDI,False
+SXM,Sint Maarten (Dutch part),WB,WDI,False
+SYC,Seychelles,WB,WDI,False
+SYR,Syrian Arab Republic,WB,WDI,False
+TCA,Turks and Caicos Islands,WB,WDI,False
+TCD,Chad,WB,WDI,False
+TGO,Togo,WB,WDI,False
+THA,Thailand,WB,WDI,False
+TJK,Tajikistan,WB,WDI,False
+TKM,Turkmenistan,WB,WDI,False
+TLS,Timor-Leste,WB,WDI,False
+TON,Tonga,WB,WDI,False
+TTO,Trinidad and Tobago,WB,WDI,False
+TUN,Tunisia,WB,WDI,False
+TUR,Turkiye,WB,WDI,False
+TUV,Tuvalu,WB,WDI,False
+TZA,Tanzania,WB,WDI,False
+UGA,Uganda,WB,WDI,False
+UKR,Ukraine,WB,WDI,False
+URY,Uruguay,WB,WDI,False
+USA,United States,WB,WDI,False
+UZB,Uzbekistan,WB,WDI,False
+VCT,St. Vincent and the Grenadines,WB,WDI,False
+VEN,"Venezuela, RB",WB,WDI,False
+VGB,British Virgin Islands,WB,WDI,False
+VIR,Virgin Islands (U.S.),WB,WDI,False
+VNM,Viet Nam,WB,WDI,False
+VUT,Vanuatu,WB,WDI,False
+WSM,Samoa,WB,WDI,False
+XKX,Kosovo,WB,WDI,False
+YEM,"Yemen, Rep.",WB,WDI,False
+ZAF,South Africa,WB,WDI,False
+ZMB,Zambia,WB,WDI,False
+ZWE,Zimbabwe,WB,WDI,False
+AFE,Africa Eastern and Southern,WB,WDI,True
+AFW,Africa Western and Central,WB,WDI,True
+ARB,Arab World,WB,WDI,True
+CEB,Central Europe and the Baltics,WB,WDI,True
+EAP,East Asia & Pacific (excluding high income),WB,WDI,True
+EAR,Early-demographic dividend,WB,WDI,True
+EAS,East Asia & Pacific,WB,WDI,True
+ECA,Europe & Central Asia (excluding high income),WB,WDI,True
+ECU,Ecuador,WB,WDI,True
+EMU,Euro area,WB,WDI,True
+EUU,European Union,WB,WDI,True
+FCS,Fragile and conflict affected situations,WB,WDI,True
+HIC,High income,WB,WDI,True
+HPC,Heavily indebted poor countries (HIPC),WB,WDI,True
+IBD,IBRD only,WB,WDI,True
+IBT,IDA & IBRD total,WB,WDI,True
+IDA,IDA total,WB,WDI,True
+IDB,IDA blend,WB,WDI,True
+IDX,IDA only,WB,WDI,True
+LAC,Latin America & Caribbean (excluding high income),WB,WDI,True
+LCN,Latin America & Caribbean,WB,WDI,True
+LDC,Least developed countries: UN classification,WB,WDI,True
+LIC,Low income,WB,WDI,True
+LMY,Low & middle income,WB,WDI,True
+LTE,Late-demographic dividend,WB,WDI,True
+MEA,Middle East & North Africa,WB,WDI,True
+MIC,Middle income,WB,WDI,True
+MNA,Middle East & North Africa (excluding high income),WB,WDI,True
+NAC,North America,WB,WDI,True
+OED,OECD members,WB,WDI,True
+OSS,Other small states,WB,WDI,True
+PRE,Pre-demographic dividend,WB,WDI,True
+PSS,Pacific island small states,WB,WDI,True
+PST,Post-demographic dividend,WB,WDI,True
+SAS,South Asia,WB,WDI,True
+SSA,Sub-Saharan Africa (excluding high income),WB,WDI,True
+SSF,Sub-Saharan Africa,WB,WDI,True
+TEA,East Asia & Pacific (IDA & IBRD countries),WB,WDI,True
+TEC,Europe & Central Asia (IDA & IBRD countries),WB,WDI,True
+TLA,Latin America & the Caribbean (IDA & IBRD countries),WB,WDI,True
+TMN,Middle East & North Africa (IDA & IBRD countries),WB,WDI,True
+TSA,South Asia (IDA & IBRD),WB,WDI,True
+TSS,Sub-Saharan Africa (IDA & IBRD countries),WB,WDI,True
+UMC,Upper middle income,WB,WDI,True
+WLD,World,WB,WDI,True

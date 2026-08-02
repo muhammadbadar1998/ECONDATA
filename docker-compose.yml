@@ -1,0 +1,11 @@
+services:
+  econdata-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: econdata_extractor
+    volumes:
+      - ./output:/app/output
+    environment:
+      - OUTPUT_DIR=/app/output
+    restart: "no"

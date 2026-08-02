@@ -1,0 +1,266 @@
+country_code,country_name,metric_code,metric_name,period,value,unit,frequency,provider,dataset,indicator_code,extracted_at,snapshot_date
+ABW,Aruba,population,Total Population,2023,106277.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AFE,Africa Eastern and Southern,population,Total Population,2023,739108306.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AFG,Afghanistan,population,Total Population,2023,42239854.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AFW,Africa Western and Central,population,Total Population,2023,502789511.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AGO,Angola,population,Total Population,2023,36684202.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ALB,Albania,population,Total Population,2023,2745972.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AND,Andorra,population,Total Population,2023,80088.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ARB,Arab World,population,Total Population,2023,473272080.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ARE,United Arab Emirates,population,Total Population,2023,9516871.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ARG,Argentina,population,Total Population,2023,46654581.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ARM,Armenia,population,Total Population,2023,2777970.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ASM,American Samoa,population,Total Population,2023,43914.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ATG,Antigua and Barbuda,population,Total Population,2023,94298.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AUS,Australia,population,Total Population,2023,26638544.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AUT,Austria,population,Total Population,2023,9132383.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+AZE,Azerbaijan,population,Total Population,2023,10112555.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BDI,Burundi,population,Total Population,2023,13238559.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BEL,Belgium,population,Total Population,2023,11822592.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BEN,Benin,population,Total Population,2023,13712828.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BFA,Burkina Faso,population,Total Population,2023,23251485.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BGD,Bangladesh,population,Total Population,2023,172954319.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BGR,Bulgaria,population,Total Population,2023,6430370.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BHR,Bahrain,population,Total Population,2023,1485509.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BHS,"Bahamas, The",population,Total Population,2023,412623.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BIH,Bosnia and Herzegovina,population,Total Population,2023,3210847.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BLR,Belarus,population,Total Population,2023,9178298.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BLZ,Belize,population,Total Population,2023,410825.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BMU,Bermuda,population,Total Population,2023,63489.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BOL,Bolivia,population,Total Population,2023,12388571.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BRA,Brazil,population,Total Population,2023,216422446.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BRB,Barbados,population,Total Population,2023,281995.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BRN,Brunei Darussalam,population,Total Population,2023,452524.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BTN,Bhutan,population,Total Population,2023,787424.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+BWA,Botswana,population,Total Population,2023,2675352.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CAF,Central African Republic,population,Total Population,2023,5742315.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CAN,Canada,population,Total Population,2023,40097761.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CEB,Central Europe and the Baltics,population,Total Population,2023,100156608.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CHE,Switzerland,population,Total Population,2023,8849852.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CHI,Channel Islands,population,Total Population,2023,175346.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CHL,Chile,population,Total Population,2023,19629590.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CHN,China,population,Total Population,2023,1410710000.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CIV,Cote d'Ivoire,population,Total Population,2023,28873034.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CMR,Cameroon,population,Total Population,2023,28647293.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+COD,"Congo, Dem. Rep.",population,Total Population,2023,102262808.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+COG,"Congo, Rep.",population,Total Population,2023,6106869.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+COL,Colombia,population,Total Population,2023,52085168.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+COM,Comoros,population,Total Population,2023,852075.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CPV,Cabo Verde,population,Total Population,2023,598682.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CRI,Costa Rica,population,Total Population,2023,5212173.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CSS,Caribbean small states,population,Total Population,2023,3167738.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CUB,Cuba,population,Total Population,2023,11194449.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CUW,Curacao,population,Total Population,2023,147862.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CYM,Cayman Islands,population,Total Population,2023,69310.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CYP,Cyprus,population,Total Population,2023,1260138.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+CZE,Czechia,population,Total Population,2023,10873689.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DEU,Germany,population,Total Population,2023,84482267.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DJI,Djibouti,population,Total Population,2023,1136455.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DMA,Dominica,population,Total Population,2023,73040.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DNK,Denmark,population,Total Population,2023,5946952.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DOM,Dominican Republic,population,Total Population,2023,11332972.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+DZA,Algeria,population,Total Population,2023,45606480.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EAP,East Asia & Pacific (excluding high income),population,Total Population,2023,2133652241.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EAR,Early-demographic dividend,population,Total Population,2023,3486290439.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EAS,East Asia & Pacific,population,Total Population,2023,2380601170.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ECA,Europe & Central Asia (excluding high income),population,Total Population,2023,247474425.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ECS,Europe & Central Asia,population,Total Population,2023,923929755.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ECU,Ecuador,population,Total Population,2023,18190484.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EGY,"Egypt, Arab Rep.",population,Total Population,2023,112716598.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EMU,Euro area,population,Total Population,2023,350357398.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ERI,Eritrea,population,Total Population,2023,3748901.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ESP,Spain,population,Total Population,2023,48373336.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EST,Estonia,population,Total Population,2023,1366188.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ETH,Ethiopia,population,Total Population,2023,126527060.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+EUU,European Union,population,Total Population,2023,449476878.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FCS,Fragile and conflict affected situations,population,Total Population,2023,1042703808.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FIN,Finland,population,Total Population,2023,5584264.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FJI,Fiji,population,Total Population,2023,936375.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FRA,France,population,Total Population,2023,68170228.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FRO,Faroe Islands,population,Total Population,2023,53270.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+FSM,"Micronesia, Fed. Sts.",population,Total Population,2023,115224.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GAB,Gabon,population,Total Population,2023,2436566.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GBR,United Kingdom,population,Total Population,2023,68350000.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GEO,Georgia,population,Total Population,2023,3760365.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GHA,Ghana,population,Total Population,2023,34121985.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GIB,Gibraltar,population,Total Population,2023,32688.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GIN,Guinea,population,Total Population,2023,14190612.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GMB,"Gambia, The",population,Total Population,2023,2773168.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GNB,Guinea-Bissau,population,Total Population,2023,2150842.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GNQ,Equatorial Guinea,population,Total Population,2023,1714671.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GRC,Greece,population,Total Population,2023,10361295.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GRD,Grenada,population,Total Population,2023,126183.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GRL,Greenland,population,Total Population,2023,56865.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GTM,Guatemala,population,Total Population,2023,17602431.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GUM,Guam,population,Total Population,2023,172952.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+GUY,Guyana,population,Total Population,2023,813834.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HIC,High income,population,Total Population,2023,1403021503.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HKG,"Hong Kong SAR, China",population,Total Population,2023,7536100.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HND,Honduras,population,Total Population,2023,10593798.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HPC,Heavily indebted poor countries (HIPC),population,Total Population,2023,907995430.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HRV,Croatia,population,Total Population,2023,3853200.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HTI,Haiti,population,Total Population,2023,11724763.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+HUN,Hungary,population,Total Population,2023,9589872.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IBD,IBRD only,population,Total Population,2023,4937047867.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IBT,IDA & IBRD total,population,Total Population,2023,6819750360.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IDA,IDA total,population,Total Population,2023,1882702493.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IDB,IDA blend,population,Total Population,2023,622553200.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IDN,Indonesia,population,Total Population,2023,277534122.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IDX,IDA only,population,Total Population,2023,1260149293.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IMN,Isle of Man,population,Total Population,2023,84710.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IND,India,population,Total Population,2023,1428627663.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IRL,Ireland,population,Total Population,2023,5262382.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IRN,"Iran, Islamic Rep.",population,Total Population,2023,89172767.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+IRQ,Iraq,population,Total Population,2023,45504560.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ISL,Iceland,population,Total Population,2023,393600.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ISR,Israel,population,Total Population,2023,9756700.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ITA,Italy,population,Total Population,2023,58761146.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+JAM,Jamaica,population,Total Population,2023,2825544.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+JOR,Jordan,population,Total Population,2023,11337052.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+JPN,Japan,population,Total Population,2023,124516650.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KAZ,Kazakhstan,population,Total Population,2023,19900177.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KEN,Kenya,population,Total Population,2023,55100586.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KGZ,Kyrgyz Republic,population,Total Population,2023,7100800.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KHM,Cambodia,population,Total Population,2023,16944826.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KIR,Kiribati,population,Total Population,2023,133515.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KNA,St. Kitts and Nevis,population,Total Population,2023,47755.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KOR,"Korea, Rep.",population,Total Population,2023,51712619.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+KWT,Kuwait,population,Total Population,2023,4310108.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LAC,Latin America & Caribbean (excluding high income),population,Total Population,2023,600825676.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LAO,Lao PDR,population,Total Population,2023,7633779.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LBN,Lebanon,population,Total Population,2023,5353930.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LBR,Liberia,population,Total Population,2023,5418377.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LBY,Libya,population,Total Population,2023,6888388.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LCA,St. Lucia,population,Total Population,2023,180251.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LCN,Latin America & Caribbean,population,Total Population,2023,664155299.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LDC,Least developed countries: UN classification,population,Total Population,2023,1150346774.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LIC,Low income,population,Total Population,2023,722984063.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LIE,Liechtenstein,population,Total Population,2023,39584.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LKA,Sri Lanka,population,Total Population,2023,22037000.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LMC,Lower middle income,population,Total Population,2023,3059564861.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LMY,Low & middle income,population,Total Population,2023,6593137026.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LSO,Lesotho,population,Total Population,2023,2330318.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LTE,Late-demographic dividend,population,Total Population,2023,2326833223.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LTU,Lithuania,population,Total Population,2023,2871897.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LUX,Luxembourg,population,Total Population,2023,668606.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+LVA,Latvia,population,Total Population,2023,1881750.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MAC,"Macao SAR, China",population,Total Population,2023,704149.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MAF,St. Martin (French part),population,Total Population,2023,32077.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MAR,Morocco,population,Total Population,2023,37840044.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MCO,Monaco,population,Total Population,2023,36297.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MDA,Moldova,population,Total Population,2023,2486891.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MDG,Madagascar,population,Total Population,2023,30325732.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MDV,Maldives,population,Total Population,2023,521021.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MEA,Middle East & North Africa,population,Total Population,2023,500787313.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MEX,Mexico,population,Total Population,2023,128455567.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MHL,Marshall Islands,population,Total Population,2023,41996.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MIC,Middle income,population,Total Population,2023,5870152963.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MKD,North Macedonia,population,Total Population,2023,1811980.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MLI,Mali,population,Total Population,2023,23293698.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MLT,Malta,population,Total Population,2023,553214.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MMR,Myanmar,population,Total Population,2023,54577997.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MNA,Middle East & North Africa (excluding high income),population,Total Population,2023,430857111.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MNE,Montenegro,population,Total Population,2023,616177.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MNG,Mongolia,population,Total Population,2023,3447157.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MNP,Northern Mariana Islands,population,Total Population,2023,49796.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MOZ,Mozambique,population,Total Population,2023,33897354.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MRT,Mauritania,population,Total Population,2023,4862989.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MUS,Mauritius,population,Total Population,2023,1261041.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MWI,Malawi,population,Total Population,2023,20931751.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+MYS,Malaysia,population,Total Population,2023,34308525.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NAC,North America,population,Total Population,2023,375076145.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NAM,Namibia,population,Total Population,2023,2604172.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NCL,New Caledonia,population,Total Population,2023,267940.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NER,Niger,population,Total Population,2023,27202843.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NGA,Nigeria,population,Total Population,2023,223804632.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NIC,Nicaragua,population,Total Population,2023,7046310.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NLD,Netherlands,population,Total Population,2023,17879488.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NOR,Norway,population,Total Population,2023,5519594.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NPL,Nepal,population,Total Population,2023,30896590.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NRU,Nauru,population,Total Population,2023,12780.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+NZL,New Zealand,population,Total Population,2023,5223100.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+OED,OECD members,population,Total Population,2023,1385005653.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+OMN,Oman,population,Total Population,2023,4644384.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+OSS,Other small states,population,Total Population,2023,14240737.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PAK,Pakistan,population,Total Population,2023,240485658.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PAN,Panama,population,Total Population,2023,4468087.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PER,Peru,population,Total Population,2023,34352719.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PHL,Philippines,population,Total Population,2023,117337368.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PLW,Palau,population,Total Population,2023,18058.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PNG,Papua New Guinea,population,Total Population,2023,10329931.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+POL,Poland,population,Total Population,2023,36685849.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PRE,Pre-demographic dividend,population,Total Population,2023,1065710613.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PRI,Puerto Rico,population,Total Population,2023,3205691.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PRK,"Korea, Dem. People's Rep.",population,Total Population,2023,26160821.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PRT,Portugal,population,Total Population,2023,10525347.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PRY,Paraguay,population,Total Population,2023,6861524.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PSE,West Bank and Gaza,population,Total Population,2023,5165775.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PSS,Pacific island small states,population,Total Population,2023,2677728.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PST,Post-demographic dividend,population,Total Population,2023,1119478514.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+PYF,French Polynesia,population,Total Population,2023,308872.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+QAT,Qatar,population,Total Population,2023,2716391.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ROU,Romania,population,Total Population,2023,19056116.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+RUS,Russian Federation,population,Total Population,2023,143826130.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+RWA,Rwanda,population,Total Population,2023,14094683.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SAS,South Asia,population,Total Population,2023,1938549529.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SAU,Saudi Arabia,population,Total Population,2023,36947025.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SDN,Sudan,population,Total Population,2023,48109006.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SEN,Senegal,population,Total Population,2023,17763163.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SGP,Singapore,population,Total Population,2023,5917648.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SLB,Solomon Islands,population,Total Population,2023,740424.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SLE,Sierra Leone,population,Total Population,2023,8791092.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SLV,El Salvador,population,Total Population,2023,6364943.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SMR,San Marino,population,Total Population,2023,33642.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SOM,Somalia,population,Total Population,2023,18143378.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SRB,Serbia,population,Total Population,2023,6618026.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SSA,Sub-Saharan Africa (excluding high income),population,Total Population,2023,1241778044.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SSD,South Sudan,population,Total Population,2023,11088796.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SSF,Sub-Saharan Africa,population,Total Population,2023,1241897817.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SST,Small states,population,Total Population,2023,20086203.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+STP,Sao Tome and Principe,population,Total Population,2023,231856.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SUR,Suriname,population,Total Population,2023,623236.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SVK,Slovak Republic,population,Total Population,2023,5426740.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SVN,Slovenia,population,Total Population,2023,2120937.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SWE,Sweden,population,Total Population,2023,10536632.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SWZ,Eswatini,population,Total Population,2023,1210822.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SXM,Sint Maarten (Dutch part),population,Total Population,2023,41163.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SYC,Seychelles,population,Total Population,2023,119773.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+SYR,Syrian Arab Republic,population,Total Population,2023,23227014.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TCA,Turks and Caicos Islands,population,Total Population,2023,46062.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TCD,Chad,population,Total Population,2023,18278568.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TEA,East Asia & Pacific (IDA & IBRD countries),population,Total Population,2023,2107522258.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TEC,Europe & Central Asia (IDA & IBRD countries),population,Total Population,2023,457326090.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TGO,Togo,population,Total Population,2023,9053799.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+THA,Thailand,population,Total Population,2023,71801279.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TJK,Tajikistan,population,Total Population,2023,10143543.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TKM,Turkmenistan,population,Total Population,2023,6516100.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TLA,Latin America & the Caribbean (IDA & IBRD countries),population,Total Population,2023,648763330.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TLS,Timor-Leste,population,Total Population,2023,1360596.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TMN,Middle East & North Africa (IDA & IBRD countries),population,Total Population,2023,425691336.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TON,Tonga,population,Total Population,2023,107773.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TSA,South Asia (IDA & IBRD),population,Total Population,2023,1938549529.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TSS,Sub-Saharan Africa (IDA & IBRD countries),population,Total Population,2023,1241897817.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TTO,Trinidad and Tobago,population,Total Population,2023,1534937.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TUN,Tunisia,population,Total Population,2023,12458223.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TUR,Turkiye,population,Total Population,2023,85326000.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TUV,Tuvalu,population,Total Population,2023,11396.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+TZA,Tanzania,population,Total Population,2023,67438106.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+UGA,Uganda,population,Total Population,2023,48582334.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+UKR,Ukraine,population,Total Population,2023,37000000.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+UMC,Upper middle income,population,Total Population,2023,2810588102.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+URY,Uruguay,population,Total Population,2023,3423108.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+USA,United States,population,Total Population,2023,334914895.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+UZB,Uzbekistan,population,Total Population,2023,36412350.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VCT,St. Vincent and the Grenadines,population,Total Population,2023,103698.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VEN,"Venezuela, RB",population,Total Population,2023,28838499.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VGB,British Virgin Islands,population,Total Population,2023,31538.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VIR,Virgin Islands (U.S.),population,Total Population,2023,104917.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VNM,Viet Nam,population,Total Population,2023,98858950.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+VUT,Vanuatu,population,Total Population,2023,334506.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+WLD,World,population,Total Population,2023,8024997028.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+WSM,Samoa,population,Total Population,2023,225681.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+XKX,Kosovo,population,Total Population,2023,1756374.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+YEM,"Yemen, Rep.",population,Total Population,2023,34449825.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ZAF,South Africa,population,Total Population,2023,60414495.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ZMB,Zambia,population,Total Population,2023,20569737.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
+ZWE,Zimbabwe,population,Total Population,2023,16665409.0,Persons,Annual,WB,WDI,SP.POP.TOTL,2026-08-02T22:03:52.568022+00:00,2026-08-02
