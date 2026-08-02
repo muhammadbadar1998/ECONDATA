@@ -4,11 +4,18 @@ import logging
 import sys
 import time
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional, Dict, Any
+import pandas as pd
 
-from src.config import DEFAULT_OUTPUT_DIR, DEFAULT_DB_CONNECTION_STRING, METRICS_CATALOG, LOGS_DIR_NAME
+from src.config import (
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_CONFIG_PATH,
+    DEFAULT_DB_CONNECTION_STRING,
+    LOGS_DIR_NAME,
+    load_pipeline_config
+)
 from src.extractor import DBnomicsExtractor
-from src.transformer import DataTransformer
+from src.transformer import DataTransformer, KNOWN_AGGREGATE_CODES
 from src.storage import DataStorageManager
 from src.db import init_db_schema
 from src.db_loader import DatabaseLoader
@@ -48,21 +55,69 @@ def setup_logger(output_dir: str) -> logging.Logger:
     return logger
 
 
+def ensure_country_foreign_keys(
+    df: pd.DataFrame,
+    countries_df: pd.DataFrame,
+    db_loader: Optional[DatabaseLoader],
+    storage: DataStorageManager,
+    provider: str,
+    dataset: str,
+    logger: logging.Logger
+) -> pd.DataFrame:
+    """Checks for newly discovered country codes in series observations and registers them in dbe_countries."""
+    if df.empty or "country_code" not in df.columns:
+        return countries_df
+
+    existing_codes = set(countries_df["country_code"].unique()) if not countries_df.empty else set()
+    new_codes = set(df["country_code"].unique()) - existing_codes
+
+    if new_codes:
+        logger.info(f"Discovered {len(new_codes)} new country/entity codes ({new_codes}). Registering in master catalog...")
+        new_rows = []
+        for code in new_codes:
+            # Find sample country_name from df
+            match = df[df["country_code"] == code]
+            c_name = match["country_name"].iloc[0] if not match.empty else code
+            new_rows.append({
+                "country_code": code,
+                "country_name": c_name,
+                "provider": provider,
+                "dataset": dataset,
+                "is_aggregate": code in KNOWN_AGGREGATE_CODES
+            })
+
+        new_df = pd.DataFrame(new_rows)
+        countries_df = pd.concat([countries_df, new_df], ignore_index=True)
+        countries_df.drop_duplicates(subset=["country_code"], keep="first", inplace=True)
+        storage.save_countries_catalog(countries_df)
+
+        if db_loader:
+            db_loader.upsert_countries(new_df)
+
+    return countries_df
+
+
 def run_pipeline(
     metrics_to_run: List[str],
     output_dir: str,
+    config_path: str = DEFAULT_CONFIG_PATH,
     load_to_db: bool = False,
     connection_string: str = DEFAULT_DB_CONNECTION_STRING
 ):
-    """Executes full economic data extraction pipeline with CSV and Supabase/SQL Server DB support."""
+    """Executes JSON-driven economic data extraction pipeline with CSV and Supabase/SQL Server DB support."""
     logger = setup_logger(output_dir)
-
     start_time = time.time()
+
+    # Load JSON metrics configuration
+    pipeline_cfg = load_pipeline_config(config_path)
+    metrics_catalog = pipeline_cfg["metrics"]
+
     db_type = "Supabase PostgreSQL" if ("postgresql" in connection_string or "postgres" in connection_string) else "SQL Server"
 
     logger.info("=========================================================")
     logger.info(" Starting DBnomics Global Economic Data Extraction Infra ")
     logger.info("=========================================================")
+    logger.info(f"Loaded Configuration File: {config_path}")
     logger.info(f"Target Output Directory: {output_dir}")
     logger.info(f"Total Metrics to Extract: {len(metrics_to_run)} -> {metrics_to_run}")
     logger.info(f"Target Database Engine: {db_type} ({'Enabled' if load_to_db else 'Disabled'})")
@@ -90,7 +145,7 @@ def run_pipeline(
 
     # 2. Save Metrics Catalog
     logger.info("Step 2/4: Exporting Master Metrics Catalog...")
-    metrics_df = DataTransformer.create_metrics_catalog_df()
+    metrics_df = DataTransformer.create_metrics_catalog_df(catalog=metrics_catalog)
     storage.save_metrics_catalog(metrics_df)
     if db_loader and not metrics_df.empty:
         db_loader.upsert_metrics(metrics_df)
@@ -101,11 +156,31 @@ def run_pipeline(
     total_observations_count = 0
 
     for idx, metric_code in enumerate(metrics_to_run, 1):
+        if metric_code not in metrics_catalog:
+            logger.warning(f"Metric code '{metric_code}' not defined in {config_path}. Skipping.")
+            continue
+
         try:
-            logger.info(f"--> [{idx}/{len(metrics_to_run)}] Extracting metric '{metric_code}'...")
-            raw_series = extractor.fetch_metric_series(metric_code)
-            df = DataTransformer.transform_series_list(metric_code, raw_series)
+            metric_info = metrics_catalog[metric_code]
+            provider = metric_info.get("provider", "WB")
+            dataset = metric_info.get("dataset", "WDI")
+
+            logger.info(f"--> [{idx}/{len(metrics_to_run)}] Extracting '{metric_code}' ({metric_info.get('category', 'historical')}) from {provider}/{dataset}...")
             
+            raw_series = extractor.fetch_metric_series(metric_code, catalog=metrics_catalog)
+            df = DataTransformer.transform_series_list(metric_code, raw_series, catalog=metrics_catalog)
+            
+            # Ensure foreign key validity in dbe_countries
+            countries_df = ensure_country_foreign_keys(
+                df=df,
+                countries_df=countries_df,
+                db_loader=db_loader,
+                storage=storage,
+                provider=provider,
+                dataset=dataset,
+                logger=logger
+            )
+
             # Save CSV Backup
             storage.save_metric_timeseries(metric_code, df)
             extracted_metric_dfs[metric_code] = df
@@ -124,7 +199,7 @@ def run_pipeline(
     logger.info("Step 4/4: Generating Economic Snapshots...")
     if extracted_metric_dfs:
         country_snapshot, metrics_snapshot, execution_snapshot = DataTransformer.generate_snapshots(
-            extracted_metric_dfs, countries_df
+            extracted_metric_dfs, countries_df, catalog=metrics_catalog
         )
         saved_snapshots = storage.save_snapshots(country_snapshot, metrics_snapshot, execution_snapshot)
         logger.info(f"CSV Snapshots successfully saved: {list(saved_snapshots.keys())}")
@@ -153,12 +228,17 @@ def run_pipeline(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DBnomics Economic Data Extraction Pipeline")
+    parser = argparse.ArgumentParser(description="DBnomics Global Economic Data Pipeline")
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG_PATH,
+        help=f"Path to JSON metrics configuration file (default: {DEFAULT_CONFIG_PATH})"
+    )
     parser.add_argument(
         "--metrics",
         nargs="+",
         default=["all"],
-        help=f"List of metric codes to extract or 'all'. Available: {list(METRICS_CATALOG.keys())}"
+        help="List of metric codes to extract or 'all'."
     )
     parser.add_argument(
         "--output-dir",
@@ -183,6 +263,10 @@ def main():
 
     args = parser.parse_args()
 
+    # Load configuration
+    pipeline_cfg = load_pipeline_config(args.config)
+    metrics_catalog = pipeline_cfg["metrics"]
+
     if args.init_db:
         logger = setup_logger(args.output_dir)
         db_type = "Supabase PostgreSQL" if ("postgresql" in args.connection_string or "postgres" in args.connection_string) else "SQL Server"
@@ -196,16 +280,17 @@ def main():
             sys.exit(1)
 
     if "all" in args.metrics:
-        metrics_to_run = list(METRICS_CATALOG.keys())
+        metrics_to_run = list(metrics_catalog.keys())
     else:
-        metrics_to_run = [m for m in args.metrics if m in METRICS_CATALOG]
+        metrics_to_run = [m for m in args.metrics if m in metrics_catalog]
         if not metrics_to_run:
-            print(f"No valid metric codes specified in {args.metrics}. Available: {list(METRICS_CATALOG.keys())}")
+            print(f"No valid metric codes specified in {args.metrics}. Available in {args.config}: {list(metrics_catalog.keys())}")
             sys.exit(1)
 
     run_pipeline(
         metrics_to_run=metrics_to_run,
         output_dir=args.output_dir,
+        config_path=args.config,
         load_to_db=args.db,
         connection_string=args.connection_string
     )

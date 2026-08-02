@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class DBnomicsExtractor:
-    """Handles fetching economic series and metadata from DBnomics REST API and client."""
+    """Handles fetching economic series and metadata from DBnomics REST API."""
 
     def __init__(self, base_url: str = DBNOMICS_BASE_URL, timeout: int = 30):
         self.base_url = base_url
@@ -34,23 +34,34 @@ class DBnomicsExtractor:
                 time.sleep(2 ** attempt)
         return {}
 
-    def fetch_metric_series(self, metric_code: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    def fetch_metric_series(
+        self,
+        metric_code: str,
+        catalog: Optional[Dict[str, Any]] = None,
+        limit: int = 1000
+    ) -> List[Dict[str, Any]]:
         """
         Fetch all country series for a specific metric indicator.
         Returns a list of raw series documents containing dimensions, observations, values, and periods.
         """
-        if metric_code not in METRICS_CATALOG:
-            raise ValueError(f"Unknown metric code: '{metric_code}'. Available metrics: {list(METRICS_CATALOG.keys())}")
+        active_catalog = catalog if catalog is not None else METRICS_CATALOG
+        if metric_code not in active_catalog:
+            raise ValueError(f"Unknown metric code: '{metric_code}'. Available metrics: {list(active_catalog.keys())}")
 
-        metric_info = METRICS_CATALOG[metric_code]
-        provider = metric_info["provider"]
-        dataset = metric_info["dataset"]
-        indicator_code = metric_info["indicator_code"]
+        metric_info = active_catalog[metric_code]
+        provider = metric_info.get("provider", "WB")
+        dataset = metric_info.get("dataset", "WDI")
+        indicator_code = metric_info.get("indicator_code", "")
 
         url = f"{self.base_url}/series/{provider}/{dataset}"
-        dimensions_filter = json.dumps({"indicator": [indicator_code]})
+        
+        # Build dimensions filter based on provider conventions (indicator or weo-subject-code)
+        if provider == "IMF" and dataset == "WEO":
+            dimensions_filter = json.dumps({"weo-subject-code": [indicator_code]})
+        else:
+            dimensions_filter = json.dumps({"indicator": [indicator_code]})
 
-        logger.info(f"Fetching series for metric '{metric_code}' (Indicator: {indicator_code}) from {provider}/{dataset}...")
+        logger.info(f"Fetching series for '{metric_code}' (Indicator: {indicator_code}) from {provider}/{dataset}...")
 
         all_series = []
         offset = 0
@@ -92,6 +103,8 @@ class DBnomicsExtractor:
         country_dict = dimensions_values_labels.get("country", {})
         if not country_dict:
             country_dict = dimensions_values_labels.get("ref_area", {})
+        if not country_dict:
+            country_dict = dimensions_values_labels.get("weo-country-code", {})
 
         countries_list = []
         for code, label in country_dict.items():

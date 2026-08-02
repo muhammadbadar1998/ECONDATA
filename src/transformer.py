@@ -1,18 +1,19 @@
 from datetime import datetime, timezone
 import pandas as pd
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
 from src.config import METRICS_CATALOG
 
 logger = logging.getLogger(__name__)
 
-# List of known multi-country regional / income aggregates in World Bank WDI
+# List of known multi-country regional / income aggregates in World Bank WDI/GEP and IMF WEO
 KNOWN_AGGREGATE_CODES = {
     "WLD", "AFE", "AFW", "ARB", "CEB", "EAR", "EAS", "EAP", "TEA", "ECU", "ECA", "TEC",
     "EUU", "FCS", "HIC", "HPC", "IBD", "IBT", "IDA", "IDB", "IDX", "LAC", "LCN", "TLA",
     "LDC", "LIC", "LMY", "LTE", "MEA", "MNA", "TMN", "MIC", "NAC", "OED", "OSS", "PRE",
-    "PSS", "PST", "SAS", "TSA", "SSA", "SSF", "TSS", "UMC", "EMU"
+    "PSS", "PST", "SAS", "TSA", "SSA", "SSF", "TSS", "UMC", "EMU", "WEO", "ADV", "EME",
+    "AME"
 }
 
 
@@ -20,18 +21,34 @@ class DataTransformer:
     """Transforms raw DBnomics API outputs into clean, normalized economic DataFrames and snapshots."""
 
     @staticmethod
-    def transform_series_list(metric_code: str, raw_series_list: List[Dict[str, Any]]) -> pd.DataFrame:
+    def transform_series_list(
+        metric_code: str,
+        raw_series_list: List[Dict[str, Any]],
+        catalog: Optional[Dict[str, Any]] = None
+    ) -> pd.DataFrame:
         """
         Transforms raw DBnomics series docs into a normalized time-series DataFrame.
         """
-        metric_info = METRICS_CATALOG[metric_code]
+        active_catalog = catalog if catalog is not None else METRICS_CATALOG
+        metric_info = active_catalog.get(metric_code, {
+            "metric_name": metric_code,
+            "unit": "",
+            "frequency": "Annual",
+            "provider": "",
+            "dataset": "",
+            "indicator_code": "",
+            "category": "historical"
+        })
+        
         extracted_at = datetime.now(timezone.utc).isoformat()
+        start_year = metric_info.get("start_year")
+        end_year = metric_info.get("end_year")
 
         records = []
 
         for series in raw_series_list:
             dims = series.get("dimensions", {})
-            country_code = dims.get("country") or dims.get("ref_area") or "UNKNOWN"
+            country_code = dims.get("country") or dims.get("ref_area") or dims.get("weo-country-code") or "UNKNOWN"
             country_name = series.get("series_name", "").split(" – ")[-1] if " – " in series.get("series_name", "") else country_code
 
             periods = series.get("period", [])
@@ -46,25 +63,36 @@ class DataTransformer:
                 except (ValueError, TypeError):
                     continue
 
+                period_str = str(p).strip()
+                
+                # Apply date period filtering if start_year / end_year are configured
+                if period_str.isdigit():
+                    yr = int(period_str)
+                    if start_year is not None and yr < start_year:
+                        continue
+                    if end_year is not None and yr > end_year:
+                        continue
+
                 records.append({
                     "country_code": str(country_code).upper(),
                     "country_name": str(country_name).strip(),
                     "metric_code": metric_code,
-                    "metric_name": metric_info["metric_name"],
-                    "period": str(p),
+                    "metric_name": metric_info.get("metric_name", metric_code),
+                    "category": metric_info.get("category", "historical"),
+                    "period": period_str,
                     "value": num_val,
-                    "unit": metric_info["unit"],
-                    "frequency": metric_info["frequency"],
-                    "provider": metric_info["provider"],
-                    "dataset": metric_info["dataset"],
-                    "indicator_code": metric_info["indicator_code"],
+                    "unit": metric_info.get("unit", ""),
+                    "frequency": metric_info.get("frequency", "Annual"),
+                    "provider": metric_info.get("provider", ""),
+                    "dataset": metric_info.get("dataset", ""),
+                    "indicator_code": metric_info.get("indicator_code", ""),
                     "extracted_at": extracted_at
                 })
 
         df = pd.DataFrame(records)
         if df.empty:
             return pd.DataFrame(columns=[
-                "country_code", "country_name", "metric_code", "metric_name",
+                "country_code", "country_name", "metric_code", "metric_name", "category",
                 "period", "value", "unit", "frequency", "provider", "dataset",
                 "indicator_code", "extracted_at"
             ])
@@ -94,17 +122,22 @@ class DataTransformer:
         return df
 
     @staticmethod
-    def create_metrics_catalog_df() -> pd.DataFrame:
+    def create_metrics_catalog_df(catalog: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
         """
         Converts METRICS_CATALOG dict into a clean DataFrame for metrics.csv.
         """
-        records = list(METRICS_CATALOG.values())
+        active_catalog = catalog if catalog is not None else METRICS_CATALOG
+        records = list(active_catalog.values())
         df = pd.DataFrame(records)
         df["updated_at"] = datetime.now(timezone.utc).isoformat()
         return df
 
     @staticmethod
-    def generate_snapshots(metric_dfs: Dict[str, pd.DataFrame], countries_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def generate_snapshots(
+        metric_dfs: Dict[str, pd.DataFrame],
+        countries_df: pd.DataFrame,
+        catalog: Optional[Dict[str, Any]] = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Generates cross-sectional and dated snapshots across all extracted metric DataFrames.
         Returns:
@@ -112,7 +145,7 @@ class DataTransformer:
             - latest_metrics_snapshot (long table)
             - dated_execution_snapshot (full long table tagged with extraction date)
         """
-        extracted_at = datetime.now(timezone.utc).isoformat()
+        active_catalog = catalog if catalog is not None else METRICS_CATALOG
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         all_records = []
@@ -137,7 +170,6 @@ class DataTransformer:
         full_history_df = pd.concat(all_records, ignore_index=True)
 
         # Build wide matrix snapshot per country
-        # Base country list
         if not countries_df.empty:
             base_countries = countries_df[["country_code", "country_name", "is_aggregate"]].copy()
         else:
@@ -146,7 +178,7 @@ class DataTransformer:
 
         snapshot_matrix = base_countries.copy()
 
-        for metric_code in METRICS_CATALOG.keys():
+        for metric_code in active_catalog.keys():
             m_df = latest_metrics_df[latest_metrics_df["metric_code"] == metric_code]
             if m_df.empty:
                 continue

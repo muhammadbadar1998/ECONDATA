@@ -265,3 +265,6 @@ TSA,South Asia (IDA & IBRD),WB,WDI,True
 TSS,Sub-Saharan Africa (IDA & IBRD countries),WB,WDI,True
 UMC,Upper middle income,WB,WDI,True
 WLD,World,WB,WDI,True
+EMD,Emerging market and developing economies,WB,GEP,False
+AME,Advanced economies,WB,GEP,True
+WLT,World (WBG members),WB,GEP,False
