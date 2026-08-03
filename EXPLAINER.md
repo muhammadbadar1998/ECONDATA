@@ -9,7 +9,7 @@ This document serves as the developer guide and architecture manual for the **Gl
 | Task | Command |
 | :--- | :--- |
 | **Run Full Pipeline with Supabase PostgreSQL** | `python -m src.main --metrics all --db` |
-| **Run Specific Metrics Only** | `python -m src.main --metrics gdp_growth forecast_gdp_growth_gep --db` |
+| **Run Specific Forecast Metrics Only** | `python -m src.main --metrics forecast_gdp_longterm_oecd forecast_gdp_growth_gep --db` |
 | **Run with Custom JSON Configuration** | `python -m src.main --config ./config/metrics.json --metrics all --db` |
 | **Initialize Database Schemas Only** | `python -m src.main --init-db` |
 | **Run via Docker Container** | `docker-compose up --build` |
@@ -35,33 +35,33 @@ To add a new World Bank or provider metric (e.g., Foreign Direct Investment `% o
   "frequency": "Annual",
   "description": "Foreign direct investment are the net inflows of investment to acquire a lasting management interest in an enterprise operating in an economy other than that of the investor.",
   "start_year": 1970,
-  "end_year": 2035
+  "end_year": 2026
 }
 ```
 
-### 2. Adding Forecasted Data (e.g. World Bank GEP or OECD Outlook)
-To fetch forecasted projections (e.g., World Bank Global Economic Prospects GDP growth up to 2035), set `"category": "forecast"` and specify the provider dataset details and period range:
+### 2. Adding Long-Term Forecasted Data (e.g. OECD Projections 2024-2060)
+To fetch long-term forecasted projections up to **2060**, set `"category": "forecast"` and specify provider details and date ranges (`start_year`: `2024`, `end_year`: `2060`):
 
 ```json
 {
-  "metric_code": "forecast_gdp_growth_gep",
-  "metric_name": "Global Economic Prospects Real GDP Growth Forecast (Annual %)",
+  "metric_code": "forecast_gdp_longterm_oecd",
+  "metric_name": "OECD Real GDP Long-Term Forecast (2024-2060)",
   "category": "forecast",
-  "provider": "WB",
-  "dataset": "GEP",
-  "indicator_code": "NYGDPMKTPKDZ",
-  "unit": "%",
+  "provider": "OECD",
+  "dataset": "DP_LIVE",
+  "indicator_code": "GDPLTFORECAST",
+  "unit": "USD Millions (2015 PPP)",
   "frequency": "Annual",
-  "description": "Medium-term annual real GDP growth rate forecast from World Bank Global Economic Prospects.",
+  "description": "Long-term projections of real GDP from OECD up to 2060.",
   "start_year": 2024,
-  "end_year": 2035
+  "end_year": 2060
 }
 ```
 
 ### 3. Filtering Periods & Date Ranges
 Each metric entry in `config/metrics.json` accepts optional date boundaries:
 - `"start_year"`: Minimum year to retain (e.g. `1960` or `2024`).
-- `"end_year"`: Maximum year to retain (e.g. `2035`).
+- `"end_year"`: Maximum year to retain (e.g. `2060`).
 
 ---
 
@@ -77,14 +77,14 @@ c:\Users\muham\Documents\Code\econdata\
 ├── src/
 │   ├── __init__.py                 # Module initializer
 │   ├── config.py                   # Dynamic JSON loader & constants
-│   ├── extractor.py                # DBnomics REST API reader with exponential retries
+│   ├── extractor.py                # DBnomics REST API reader with exponential retries (WB/IMF/OECD support)
 │   ├── transformer.py              # Normalization, country aggregate detection, snapshot builders
 │   ├── storage.py                  # Directory manager & CSV exporter
 │   ├── db.py                       # SQLAlchemy engine factory & DDL schema executor
 │   ├── db_loader.py                # High-speed bulk loader (psycopg2 execute_values)
 │   └── main.py                     # CLI orchestrator, FK country registration & file logger
 ├── output/
-│   ├── countries.csv               # Master country catalog (269 countries/aggregates)
+│   ├── countries.csv               # Master country catalog (273 countries/aggregates)
 │   ├── metrics.csv                 # Master metrics catalog
 │   ├── metrics/*.csv               # Individual time-series CSV per indicator
 │   ├── snapshots/                  # Cross-sectional latest matrix snapshots
@@ -101,9 +101,9 @@ c:\Users\muham\Documents\Code\econdata\
 
 All pipeline database tables are prefixed with `dbe_`:
 
-1. **`dbe_countries`**: Master catalog of 269 countries and regional aggregates (`is_aggregate = TRUE`).
+1. **`dbe_countries`**: Master catalog of 273 countries and regional aggregates (`is_aggregate = TRUE`).
 2. **`dbe_metrics`**: Catalog of indicators defined in `config/metrics.json`.
-3. **`dbe_economic_observations`**: Time-series observations table with composite primary key `(country_code, metric_code, period)`. Contains **73,440+ rows**.
+3. **`dbe_economic_observations`**: Time-series observations table with composite primary key `(country_code, metric_code, period)`. Contains **75,327+ rows** including long-term forecasts through 2060.
 4. **`dbe_latest_country_snapshots`**: Pivoted cross-sectional matrix table storing the latest metric value and period for every country.
 5. **`dbe_pipeline_runs`**: Execution audit log tracking extraction metrics count, observation count, and execution time.
 

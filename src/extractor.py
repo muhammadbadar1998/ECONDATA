@@ -55,9 +55,11 @@ class DBnomicsExtractor:
 
         url = f"{self.base_url}/series/{provider}/{dataset}"
         
-        # Build dimensions filter based on provider conventions (indicator or weo-subject-code)
+        # Build dimensions filter based on provider conventions
         if provider == "IMF" and dataset == "WEO":
             dimensions_filter = json.dumps({"weo-subject-code": [indicator_code]})
+        elif provider == "OECD":
+            dimensions_filter = json.dumps({"INDICATOR": [indicator_code]})
         else:
             dimensions_filter = json.dumps({"indicator": [indicator_code]})
 
@@ -105,6 +107,8 @@ class DBnomicsExtractor:
             country_dict = dimensions_values_labels.get("ref_area", {})
         if not country_dict:
             country_dict = dimensions_values_labels.get("weo-country-code", {})
+        if not country_dict:
+            country_dict = dimensions_values_labels.get("LOCATION", {})
 
         countries_list = []
         for code, label in country_dict.items():

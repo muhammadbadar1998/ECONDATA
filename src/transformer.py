@@ -7,13 +7,13 @@ from src.config import METRICS_CATALOG
 
 logger = logging.getLogger(__name__)
 
-# List of known multi-country regional / income aggregates in World Bank WDI/GEP and IMF WEO
+# List of known multi-country regional / income aggregates in World Bank WDI/GEP, OECD and IMF WEO
 KNOWN_AGGREGATE_CODES = {
     "WLD", "AFE", "AFW", "ARB", "CEB", "EAR", "EAS", "EAP", "TEA", "ECU", "ECA", "TEC",
     "EUU", "FCS", "HIC", "HPC", "IBD", "IBT", "IDA", "IDB", "IDX", "LAC", "LCN", "TLA",
     "LDC", "LIC", "LMY", "LTE", "MEA", "MNA", "TMN", "MIC", "NAC", "OED", "OSS", "PRE",
     "PSS", "PST", "SAS", "TSA", "SSA", "SSF", "TSS", "UMC", "EMU", "WEO", "ADV", "EME",
-    "AME"
+    "AME", "OECD", "OECDE"
 }
 
 
@@ -48,7 +48,14 @@ class DataTransformer:
 
         for series in raw_series_list:
             dims = series.get("dimensions", {})
-            country_code = dims.get("country") or dims.get("ref_area") or dims.get("weo-country-code") or "UNKNOWN"
+            country_code = (
+                dims.get("country") or
+                dims.get("ref_area") or
+                dims.get("weo-country-code") or
+                dims.get("LOCATION") or
+                dims.get("location") or
+                "UNKNOWN"
+            )
             country_name = series.get("series_name", "").split(" – ")[-1] if " – " in series.get("series_name", "") else country_code
 
             periods = series.get("period", [])
