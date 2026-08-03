@@ -9,10 +9,27 @@ This document serves as the developer guide and architecture manual for the **Gl
 | Task | Command |
 | :--- | :--- |
 | **Run Full Pipeline with Supabase PostgreSQL** | `python -m src.main --metrics all --db` |
-| **Run Specific Forecast Metrics Only** | `python -m src.main --metrics forecast_gdp_longterm_oecd forecast_gdp_growth_gep --db` |
+| **Run Incremental Update for Specific Metrics** | `python -m src.main --metrics forecast_gdp_longterm_oecd forecast_gdp_growth_gep --db` |
 | **Run with Custom JSON Configuration** | `python -m src.main --config ./config/metrics.json --metrics all --db` |
 | **Initialize Database Schemas Only** | `python -m src.main --init-db` |
 | **Run via Docker Container** | `docker-compose up --build` |
+
+---
+
+## 🔄 Incremental Updates & Merge (UPSERT) Strategy
+
+The pipeline is designed to be **safe for recurring runs**. Executing the pipeline will **never wipe existing data**; instead, it incrementally updates changed records and appends new rows across both Database and CSV storage layers.
+
+### 1. Database UPSERT Layer (`dbe_economic_observations`)
+- **PostgreSQL (Supabase)**: Uses `psycopg2.extras.execute_values` with `ON CONFLICT (country_code, metric_code, period) DO UPDATE SET val = EXCLUDED.val, unit = EXCLUDED.unit, extracted_at = EXCLUDED.extracted_at`.
+- **SQL Server (T-SQL)**: Uses `MERGE INTO dbe_economic_observations USING #stg_obs ON (country_code, metric_code, period) WHEN MATCHED THEN UPDATE WHEN NOT MATCHED THEN INSERT`.
+- **Behavior**: Existing rows with unchanged values remain untouched. Updated values are overwritten, and new periods/countries are inserted seamlessly.
+
+### 2. Local CSV Storage Layer ([`src/storage.py`](file:///c:/Users/muham/Documents/Code/econdata/src/storage.py))
+- Reads pre-existing metric CSV files (`output/metrics/<metric_code>.csv`) if present.
+- Merges newly extracted records with historical records.
+- Deduplicates on `(country_code, period)` keeping the newest extracted record (`keep='last'`).
+- Saves the sorted, merged dataset back to disk.
 
 ---
 
@@ -21,7 +38,7 @@ This document serves as the developer guide and architecture manual for the **Gl
 All metrics, indicators, providers, and period ranges are defined in [`config/metrics.json`](file:///c:/Users/muham/Documents/Code/econdata/config/metrics.json). **You do NOT need to write Python code to add new metrics, adjust date ranges, or add forecast datasets.**
 
 ### 1. Adding a New Historical Indicator
-To add a new World Bank or provider metric (e.g., Foreign Direct Investment `% of GDP` or Central Bank Interest Rate), simply add an entry to the `"metrics"` array in `config/metrics.json`:
+To add a new World Bank or provider metric (e.g., Foreign Direct Investment `% of GDP`), add an entry to the `"metrics"` array in `config/metrics.json`:
 
 ```json
 {
@@ -33,7 +50,7 @@ To add a new World Bank or provider metric (e.g., Foreign Direct Investment `% o
   "indicator_code": "BX.KLT.DINV.WD.GD.ZS",
   "unit": "% of GDP",
   "frequency": "Annual",
-  "description": "Foreign direct investment are the net inflows of investment to acquire a lasting management interest in an enterprise operating in an economy other than that of the investor.",
+  "description": "Foreign direct investment are the net inflows of investment to acquire a lasting management interest.",
   "start_year": 1970,
   "end_year": 2026
 }
@@ -58,11 +75,6 @@ To fetch long-term forecasted projections up to **2060**, set `"category": "fore
 }
 ```
 
-### 3. Filtering Periods & Date Ranges
-Each metric entry in `config/metrics.json` accepts optional date boundaries:
-- `"start_year"`: Minimum year to retain (e.g. `1960` or `2024`).
-- `"end_year"`: Maximum year to retain (e.g. `2060`).
-
 ---
 
 ## 🏗️ Architecture & Module Guide
@@ -79,14 +91,14 @@ c:\Users\muham\Documents\Code\econdata\
 │   ├── config.py                   # Dynamic JSON loader & constants
 │   ├── extractor.py                # DBnomics REST API reader with exponential retries (WB/IMF/OECD support)
 │   ├── transformer.py              # Normalization, country aggregate detection, snapshot builders
-│   ├── storage.py                  # Directory manager & CSV exporter
+│   ├── storage.py                  # Incremental CSV storage manager (merges & deduplicates)
 │   ├── db.py                       # SQLAlchemy engine factory & DDL schema executor
-│   ├── db_loader.py                # High-speed bulk loader (psycopg2 execute_values)
+│   ├── db_loader.py                # High-speed bulk loader (psycopg2 execute_values / T-SQL MERGE)
 │   └── main.py                     # CLI orchestrator, FK country registration & file logger
 ├── output/
 │   ├── countries.csv               # Master country catalog (273 countries/aggregates)
 │   ├── metrics.csv                 # Master metrics catalog
-│   ├── metrics/*.csv               # Individual time-series CSV per indicator
+│   ├── metrics/*.csv               # Individual time-series CSV per indicator (incrementally merged)
 │   ├── snapshots/                  # Cross-sectional latest matrix snapshots
 │   └── logs/                       # Daily persistent log files
 ├── Dockerfile                      # Container build manifest
@@ -107,7 +119,7 @@ All pipeline database tables are prefixed with `dbe_`:
 4. **`dbe_latest_country_snapshots`**: Pivoted cross-sectional matrix table storing the latest metric value and period for every country.
 5. **`dbe_pipeline_runs`**: Execution audit log tracking extraction metrics count, observation count, and execution time.
 
-### Database Credentials (Environment Variables)
+### Database Credentials
 - **Host**: `db.zcrgxnuqbylkhyzwsnjt.supabase.co`
 - **Database**: `postgres`
 - **Port**: `5432`
@@ -127,7 +139,7 @@ All pipeline database tables are prefixed with `dbe_`:
 - All `NaN` or invalid values are sanitized to Python `None` so they store cleanly as SQL `NULL`.
 
 ### Re-running the Pipeline
-To re-run the extraction pipeline and update Supabase + CSV outputs:
+To re-run the extraction pipeline and update Supabase + CSV outputs incrementally:
 ```bash
 python -m src.main --metrics all --db
 ```
