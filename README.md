@@ -1,65 +1,57 @@
-# DBnomics Global Economic Data Extraction & SQL Server Pipeline
+# DBnomics Global Economic Data Extraction & Supabase PostgreSQL Pipeline
 
-A containerized Python pipeline to extract high-level macroeconomic indicators across all available countries from [DBnomics](https://db.nomics.world/), normalize time-series observations, export master catalogs, and perform bulk UPSERT loading into **SQL Server Database** (`dbe_*` tables) while maintaining local CSV backups.
-
----
-
-## 🗄️ SQL Server Database Schema (`dbe_*`)
-
-The pipeline connects to SQL Server using ODBC Driver 17 / 18 and automatically manages the `dbe_*` tables:
-
-| Table Name | Description | Key Columns |
-| :--- | :--- | :--- |
-| `dbe_countries` | Master catalog of countries & regional aggregates | `country_code` (PK), `country_name`, `provider`, `dataset`, `is_aggregate` |
-| `dbe_metrics` | Data dictionary of tracked economic indicators | `metric_code` (PK), `metric_name`, `provider`, `dataset`, `indicator_code`, `unit` |
-| `dbe_economic_observations` | Full historical time-series observations | `id` (PK), `country_code`, `metric_code`, `period`, `val`, `unit`, `frequency`, `extracted_at` |
-| `dbe_latest_country_snapshots` | Cross-sectional latest value matrix per country | `country_code` (PK), `gdp_usd_latest`, `gdp_growth_latest`, `inflation_cpi_latest`, etc. |
-| `dbe_pipeline_runs` | Execution audit log & pipeline run history | `run_id` (PK), `run_timestamp`, `metrics_extracted`, `total_observations`, `status`, `execution_seconds` |
+A Python pipeline to extract high-level macroeconomic indicators across all available countries from [DBnomics](https://db.nomics.world/), normalize them into a **typed, extensible schema**, and perform idempotent bulk UPSERT loading into **Supabase PostgreSQL** (`dbe_*` tables).
 
 ---
 
-## 📁 Backup CSV Directory Structure (`./output/`)
+## 🗄️ Normalized Database Schema (`dbe_*`)
 
-```
-output/
-├── countries.csv                 # Master catalog of countries
-├── metrics.csv                   # Data dictionary & metadata of tracked indicators
-├── metrics/                      # Full historical time-series CSV per metric
-│   ├── gdp_usd.csv               # Gross Domestic Product in Current USD
-│   ├── gdp_growth.csv            # Annual GDP Growth Rate (%)
-│   ├── inflation_cpi.csv         # Inflation Rate, CPI Annual (%)
-│   ├── unemployment_rate.csv     # Unemployment Rate (% of Labor Force)
-│   ├── population.csv            # Total Population
-│   ├── current_account_balance.csv# Current Account Balance (% of GDP)
-│   └── govt_debt_gdp.csv         # Central Government Debt (% of GDP)
-└── snapshots/                    # Cross-sectional and versioned snapshots
-    ├── latest_country_snapshot.csv # Pivoted matrix of latest available value per country across all metrics
-    ├── latest_metrics_snapshot.csv # Normalized long-format table of single latest observation per country/metric
-    └── dated/
-        └── snapshot_YYYY-MM-DD.csv # Execution-dated snapshot for tracking extraction history over time
-```
+The pipeline connects to Supabase PostgreSQL and manages the normalized `dbe_*` tables:
+
+| Table Name | Description |
+| :--- | :--- |
+| `dbe_entities` | Canonical entity registry (countries = ISO-3166 alpha-3, aggregates, regions) with hierarchy |
+| `dbe_entity_aliases` | `(provider, provider_code) → entity` mapping resolving cross-provider collisions |
+| `dbe_metrics` | Indicator metadata registry (frequency, `base_unit`, `unit_normalization`, aggregation) |
+| `dbe_metric_synonyms` | Keyword synonyms for the future text-to-SQL layer |
+| `dbe_sources` | Provider/dataset/indicator registration |
+| `dbe_entity_membership` | Aggregate → member entity relationships |
+| `dbe_observations` | Typed time-series core `(metric_id, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str)` |
+| `dbe_pipeline_runs` | Extended execution audit log |
+
+Views: `v_latest_country_snapshot`, `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`.
+
+---
+
+## 🔒 Security (owner-only database)
+
+- Credentials are read from `config/.env` (gitignored). Copy `config/.env.example` → `config/.env`.
+- **Never commit a real password.** Rotate it if exposed.
+- In Supabase: disable the public `anon` role for `dbe_*` and restrict access by IP allowlist (no `0.0.0.0/0`).
+
+> **Full step-by-step deployment** (password rotation, Supabase hardening, schema init, live extraction, and Airflow scheduling): see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
 ## 🚀 Execution Guide
 
 ### 1. Environment Configuration
-
-Define connection string in environment variables or command-line:
 ```bash
-DB_CONNECTION_STRING="Driver={ODBC Driver 17 for SQL Server};Server=(localdb)\MSSQLLocalDB;UID=IMFUser;PWD=IMFPassword;Encrypt=no;TrustServerCertificate=yes;"
+cp config/.env.example config/.env
+# edit config/.env and set SUPABASE_HOST / SUPABASE_PASSWORD
 ```
 
----
-
-### 2. Initialize Database Schema Only
+### 2. Install dependencies
 ```bash
-python -m src.main --init-db --connection-string "Driver={ODBC Driver 17 for SQL Server};Server=(localdb)\MSSQLLocalDB;UID=IMFUser;PWD=IMFPassword;Encrypt=no;TrustServerCertificate=yes;"
+pip install -r requirements.txt
 ```
 
----
+### 3. Initialize Database Schema Only
+```bash
+python -m src.main --init-db
+```
 
-### 3. Run Pipeline with SQL Server Ingestion & CSV Backups
+### 4. Run Pipeline with PostgreSQL Ingestion
 ```bash
 # Full extraction & database load
 python -m src.main --metrics all --db
@@ -68,9 +60,23 @@ python -m src.main --metrics all --db
 python -m src.main --metrics gdp_usd population --db
 ```
 
+### 5. Airflow Orchestration (Docker)
+```bash
+docker compose -f airflow/docker-compose.airflow.yml up
+```
+The `econdata_pipeline` DAG runs one idempotent load task per metric on a daily schedule.
+
 ---
 
-### 4. Docker Execution
+## 🧩 Extending the Pipeline
+
+All metrics are defined in `config/metrics.json`. See `EXPLAINER.md` for the full field reference and examples (historical indicators, long-term forecasts, higher-frequency series).
+
+---
+
+## 🧪 Tests & Linting
 ```bash
-docker compose up --build
+pytest            # unit tests
+ruff check src/   # lint
 ```
+

@@ -28,6 +28,7 @@ ENV/
 
 # Environment variables
 .env
+config/.env
 
 # IDE / Editor
 .vscode/

@@ -1,7 +1,17 @@
-import os
 import json
 import logging
-from typing import Dict, Any
+import os
+from typing import Any, Dict
+
+# Load environment variables from .env file(s) if they exist.
+# Searches the current directory (.env), plus the conventional config/.env.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()                     # CWD .env
+    load_dotenv("config/.env")        # repo config/.env (gitignored)
+    load_dotenv(".env")               # repo root .env
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +26,24 @@ LOGS_DIR_NAME = "logs"
 DBNOMICS_BASE_URL = "https://api.db.nomics.world/v22"
 
 # Supabase PostgreSQL Database Connection String
-DEFAULT_DB_CONNECTION_STRING = os.getenv(
-    "DB_CONNECTION_STRING",
-    "postgresql+psycopg2://postgres:ECONDATA.123@db.zcrgxnuqbylkhyzwsnjt.supabase.co:5432/postgres"
-)
+# Read from environment variables (no hardcoded fallback)
+SUPABASE_HOST = os.getenv("SUPABASE_HOST")
+SUPABASE_DB = os.getenv("SUPABASE_DB", "postgres")
+SUPABASE_USER = os.getenv("SUPABASE_USER", "postgres")
+SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
+SUPABASE_PORT = os.getenv("SUPABASE_PORT", "5432")
 
-# Database Table Names (All Prefixed with dbe_)
-DBE_TABLE_COUNTRIES = "dbe_countries"
-DBE_TABLE_METRICS = "dbe_metrics"
-DBE_TABLE_OBSERVATIONS = "dbe_economic_observations"
-DBE_TABLE_SNAPSHOTS = "dbe_latest_country_snapshots"
-DBE_TABLE_RUNS = "dbe_pipeline_runs"
+def get_supabase_connection_string() -> str:
+    """Constructs Supabase PostgreSQL connection string from environment variables."""
+    if not all([SUPABASE_HOST, SUPABASE_PASSWORD]):
+        raise ValueError(
+            "Supabase connection credentials not fully set in environment variables. "
+            "Please set SUPABASE_HOST, SUPABASE_PASSWORD (and optionally SUPABASE_USER, SUPABASE_DB, SUPABASE_PORT)."
+        )
 
+    return f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
+
+DEFAULT_DB_CONNECTION_STRING = get_supabase_connection_string()
 
 def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
     """Loads metrics configuration and pipeline settings from JSON file."""
@@ -41,7 +57,7 @@ def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, An
 
         settings = data.get("pipeline_settings", {})
         metrics_list = data.get("metrics", [])
-        
+
         metrics_catalog = {}
         for item in metrics_list:
             code = item["metric_code"]
@@ -56,7 +72,13 @@ def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, An
                 "frequency": item.get("frequency", "Annual"),
                 "description": item.get("description", ""),
                 "start_year": item.get("start_year"),
-                "end_year": item.get("end_year")
+                "end_year": item.get("end_year"),
+                "synonyms": item.get("synonyms", []),
+                "base_unit": item.get("base_unit", item.get("unit", "")),
+                "unit_normalization": item.get("unit_normalization", ""),
+                "dimension_key": item.get("dimension_key", "country"),
+                "entity_scope": item.get("entity_scope", "country"),
+                "aggregation": item.get("aggregation", "mean"),
             }
 
         return {
@@ -82,7 +104,12 @@ def get_fallback_config() -> Dict[str, Any]:
             "frequency": "Annual",
             "description": "GDP at purchaser's prices is the sum of gross value added by all resident producers.",
             "start_year": 1960,
-            "end_year": 2026
+            "end_year": 2026,
+            "synonyms": ["GDP", "gross domestic product", "economic output"],
+            "base_unit": "Current US$",
+            "unit_normalization": "",
+            "dimension_key": "country",
+            "entity_scope": "country",
         },
         "gdp_growth": {
             "metric_code": "gdp_growth",
@@ -95,7 +122,12 @@ def get_fallback_config() -> Dict[str, Any]:
             "frequency": "Annual",
             "description": "Annual percentage growth rate of GDP at market prices based on constant local currency.",
             "start_year": 1960,
-            "end_year": 2026
+            "end_year": 2026,
+            "synonyms": ["GDP growth", "economic growth"],
+            "base_unit": "%",
+            "unit_normalization": "",
+            "dimension_key": "country",
+            "entity_scope": "country",
         }
     }
     return {
@@ -107,3 +139,4 @@ def get_fallback_config() -> Dict[str, Any]:
 # Initial default metrics catalog object
 PIPELINE_CONFIG = load_pipeline_config()
 METRICS_CATALOG = PIPELINE_CONFIG["metrics"]
+

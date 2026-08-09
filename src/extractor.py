@@ -1,8 +1,9 @@
 import json
 import logging
 import time
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import Dict, List, Any, Optional
 
 from src.config import DBNOMICS_BASE_URL, METRICS_CATALOG
 
@@ -54,7 +55,7 @@ class DBnomicsExtractor:
         indicator_code = metric_info.get("indicator_code", "")
 
         url = f"{self.base_url}/series/{provider}/{dataset}"
-        
+
         # Build dimensions filter based on provider conventions
         if provider == "IMF" and dataset == "WEO":
             dimensions_filter = json.dumps({"weo-subject-code": [indicator_code]})
