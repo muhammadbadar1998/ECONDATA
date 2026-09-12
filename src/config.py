@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 # Load environment variables from .env file(s) if they exist.
 # Searches the current directory (.env), plus the conventional config/.env.
@@ -26,22 +26,76 @@ LOGS_DIR_NAME = "logs"
 DBNOMICS_BASE_URL = "https://api.db.nomics.world/v22"
 
 # Supabase PostgreSQL Database Connection String
-# Read from environment variables (no hardcoded fallback)
+# Discrete connection parts (fallback when no full URL is provided).
 SUPABASE_HOST = os.getenv("SUPABASE_HOST")
 SUPABASE_DB = os.getenv("SUPABASE_DB", "postgres")
 SUPABASE_USER = os.getenv("SUPABASE_USER", "postgres")
 SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
 SUPABASE_PORT = os.getenv("SUPABASE_PORT", "5432")
 
+# Environment variables that may hold a full connection URL, in priority order.
+# The namespaced ECONDATA_DATABASE_URL is preferred so an ambient DATABASE_URL
+# belonging to another tool cannot silently override this pipeline. A Supabase
+# Session pooler URL (aws-<n>-<region>.pooler.supabase.com) is IPv4, unlike the
+# IPv6-only direct db.<ref>.supabase.co host.
+_DATABASE_URL_ENV_VARS = (
+    "ECONDATA_DATABASE_URL",
+    "DATABASE_URL",
+    "SHAREDPOOLER",
+    "sharedpooler",
+)
+
+
+def _resolve_database_url() -> Tuple[Optional[str], Optional[str]]:
+    """Return ``(url, source_env_var)``, reading the environment at call time."""
+    for name in _DATABASE_URL_ENV_VARS:
+        value = os.getenv(name)
+        if value:
+            return value.strip(), name
+    return None, None
+
+
+def _normalize_database_url(url: str) -> str:
+    """Ensure a SQLAlchemy psycopg2 driver scheme."""
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg2://" + url[len("postgresql://"):]
+    return url
+
+
 def get_supabase_connection_string() -> str:
-    """Constructs Supabase PostgreSQL connection string from environment variables."""
-    if not all([SUPABASE_HOST, SUPABASE_PASSWORD]):
+    """Constructs the PostgreSQL connection string.
+
+    Prefers a full URL from ``ECONDATA_DATABASE_URL``/``DATABASE_URL``/
+    ``SHAREDPOOLER`` (resolved at call time so credential edits can be picked up),
+    falling back to the discrete ``SUPABASE_*`` variables.
+    """
+    url, source = _resolve_database_url()
+    if url:
+        if source == "DATABASE_URL":
+            logger.warning(
+                "Using the ambient DATABASE_URL environment variable; prefer "
+                "ECONDATA_DATABASE_URL to avoid unintended overrides."
+            )
+        else:
+            logger.info("Using database connection URL from %s.", source)
+        return _normalize_database_url(url)
+
+    host = os.getenv("SUPABASE_HOST")
+    password = os.getenv("SUPABASE_PASSWORD")
+    if not all([host, password]):
         raise ValueError(
             "Supabase connection credentials not fully set in environment variables. "
-            "Please set SUPABASE_HOST, SUPABASE_PASSWORD (and optionally SUPABASE_USER, SUPABASE_DB, SUPABASE_PORT)."
+            "Set ECONDATA_DATABASE_URL (or SHAREDPOOLER), or SUPABASE_HOST and "
+            "SUPABASE_PASSWORD (plus optionally SUPABASE_USER, SUPABASE_DB, SUPABASE_PORT)."
         )
 
-    return f"postgresql+psycopg2://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DB}"
+    user = os.getenv("SUPABASE_USER", "postgres")
+    port = os.getenv("SUPABASE_PORT", "5432")
+    database = os.getenv("SUPABASE_DB", "postgres")
+    return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
+
 
 DEFAULT_DB_CONNECTION_STRING = get_supabase_connection_string()
 
