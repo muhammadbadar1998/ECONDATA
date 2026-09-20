@@ -77,14 +77,15 @@ The dashboard has a sidebar with 7 main views:
 
 The dashboard reads from two sources:
 
-1. **Local configuration** (`config/metrics.json`, `src/entities.py`):
-   - Metric definitions (categories, providers, time ranges)
-   - Entity registry (countries, aggregates, regions)
+1. **Local configuration** (`config/metrics.json`):
+    - Metric definitions (categories, providers, time ranges)
+    - Used by Browse Datasets and Data Explorer as the offline catalog
 
 2. **Supabase PostgreSQL** (live data):
-   - `dbe_metrics`, `dbe_entities`, `dbe_observations`, `dbe_sources`, `dbe_pipeline_runs`
-   - View `v_dated_execution_snapshot` for time-series queries
-   - Connection via `config/.env` (Supabase Session pooler recommended for IPv4)
+    - `dbe_metrics`, `dbe_entities`, `dbe_observations`, `dbe_sources`, `dbe_pipeline_runs`
+    - View `v_dated_execution_snapshot` for time-series queries
+    - Connection via `config/.env` (Supabase Session pooler recommended for IPv4)
+    - Entity registry (countries, aggregates, regions) is queried from `dbe_entities`
 
 ### Visualization Types
 
@@ -110,7 +111,9 @@ Edit `config/metrics.json` to add new economic indicators.
 
 ### Update Styling
 
-Edit the CSS in `dashboard.py` (the `<style>` section) to customize colors and layout.
+Edit `.streamlit/config.toml` for theme settings or `src/dashboard_theme.py` for the palette.
+The CSS in `dashboard.py` (the `<style>` section) also controls layout and colors.
+A **server restart** is required for `.streamlit/config.toml` changes to take effect.
 
 ### Add New Views
 
@@ -129,7 +132,13 @@ The project uses:
 
 ### Testing
 
-While the dashboard doesn't have traditional unit tests, you can verify it loads by running:
+The dashboard includes three test modules:
+
+- `tests/test_dashboard_counts.py` — unit tests for count formatting, overview summarisation, and regression locks (no DB needed)
+- `tests/test_dashboard_theme.py` — contrast, palette, and chart-styling tests (no Streamlit runtime needed)
+- `tests/test_dashboard_db_integration.py` — opt-in live-Supabase integration tests (set `ECONDATA_TEST_DB_CONN` to run)
+
+While the dashboard doesn't have traditional unit tests for the Streamlit UI itself, you can verify it loads by running:
 
 ```bash
 python -c "import dashboard; print('Dashboard imports successfully')"
@@ -141,10 +150,11 @@ The dashboard uses Streamlit's `@st.cache_data` decorator to cache database quer
 
 ## Known Issues & Limitations
 
-1. **Entity Parsing**: The entities.py parser is a simplified version that may need refinement for complex cases
-2. **Data Loading**: The dashboard now queries Supabase directly; large result sets are capped at 50,000 rows in the Data Explorer
-3. **Responsive Design**: Some elements may not display perfectly on very small screens
-4. **Credential Changes**: Use the "Refresh Data" button after editing `config/.env` to pick up new credentials without a restart
+1. **Data Loading**: The dashboard queries Supabase directly; large result sets are capped at 50,000 rows in the Data Explorer
+2. **Responsive Design**: Some elements may not display perfectly on very small screens
+3. **Credential Changes**: Use the "Refresh Data" button after editing `config/.env` to pick up new credentials without a restart
+4. **Count vs List Mismatch**: Entity counts on the Overview tiles come from `dbe_entities`, but badge lists on entity pages use `get_entity_options()` which inner-joins `dbe_observations`. An active entity with no loaded data appears in the tile count but not in the badge lists. This is by design.
+5. **Restart Required**: Changes to `.streamlit/config.toml` require a Streamlit server restart (unlike script edits, which hot-reload).
 
 ## License
 

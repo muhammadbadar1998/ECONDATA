@@ -6,6 +6,7 @@ actionable messages instead of being swallowed, and active connection checks are
 cached briefly so the UI stays responsive when the database is unreachable.
 """
 
+import math
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -280,3 +281,83 @@ def get_observations(
         })
     except Exception as exc:
         raise DashboardDataError(_explain_connection_error(exc)) from exc
+
+
+def format_count(value) -> str:
+    """Format a count for display; never returns a bare zero for missing data."""
+    if value is None:
+        return "—"
+    try:
+        return f"{int(value):,}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _summarize_overview(row: Dict[str, object]) -> Dict[str, Optional[int]]:
+    """Normalize a raw overview row into tile values.
+
+    Missing or NaN keys become ``None``.  Only the six named tile keys
+    are returned so that custom entity types never leak into the UI.
+    """
+
+    def _as_int(key):
+        val = row.get(key)
+        if val is None or (isinstance(val, float) and math.isnan(val)):
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "metrics_count": _as_int("metrics_count"),
+        "countries_count": _as_int("countries_count"),
+        "aggregates_count": _as_int("aggregates_count"),
+        "regions_count": _as_int("regions_count"),
+        "forecasts_count": _as_int("forecasts_count"),
+        "historical_count": _as_int("historical_count"),
+    }
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_overview_counts() -> Dict[str, object]:
+    """Return one value per Overview tile from Supabase."""
+    sql = """
+        SELECT
+            (SELECT COUNT(*) FROM dbe_metrics)                                                AS metrics_count,
+            (SELECT COUNT(*) FROM dbe_entities WHERE is_active AND entity_type='country')      AS countries_count,
+            (SELECT COUNT(*) FROM dbe_entities WHERE is_active AND entity_type='aggregate')    AS aggregates_count,
+            (SELECT COUNT(*) FROM dbe_entities WHERE is_active AND entity_type='region')       AS regions_count,
+            (SELECT COUNT(*) FROM dbe_metrics WHERE category='forecast')                       AS forecasts_count,
+            (SELECT COUNT(*) FROM dbe_metrics WHERE category='historical')                     AS historical_count;
+    """
+    df = run_query(sql)
+    if df.empty:
+        return _summarize_overview({})
+    return _summarize_overview(df.iloc[0].to_dict())
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_entities_by_type(entity_type: str) -> pd.DataFrame:
+    """Return entities of a given type that have observations.
+
+    Delegates to :func:`get_entity_options` (which inner-joins
+    ``dbe_observations``) and filters by ``entity_type``.
+    """
+    options = get_entity_options()
+    if options.empty:
+        return options
+    return options[options["entity_type"] == entity_type].reset_index(drop=True)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_entity_aliases(limit: int = 50) -> pd.DataFrame:
+    """Return provider/provider-code → entity_code mappings."""
+    sql = """
+        SELECT a.provider, a.provider_code, e.entity_code
+        FROM dbe_entity_aliases a
+        JOIN dbe_entities e ON e.entity_id = a.entity_id
+        ORDER BY a.provider, a.provider_code
+        LIMIT :limit;
+    """
+    return run_query(sql, params={"limit": limit})
