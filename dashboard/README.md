@@ -1,12 +1,11 @@
 Dashboard
-========
+=========
 
 This directory contains the Streamlit dashboard for exploring EconData global economic datasets.
 
 ## Files
 
 - `dashboard.py`: The main Streamlit dashboard application
-- `requirements.txt`: Streamlit dependencies (to be merged with main requirements)
 
 ## Setup Instructions
 
@@ -17,33 +16,50 @@ This directory contains the Streamlit dashboard for exploring EconData global ec
 
 ### Installation
 
-1. **Install Streamlit dependencies**:
-   ```bash
-   pip install streamlit pandas plotly
-   ```
+1. **Ensure project dependencies are installed**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-2. **Ensure project dependencies are installed**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Configuration
 
-3. **Run the dashboard**:
-   ```bash
-   streamlit run dashboard.py
-   ```
+Create `config/.env` from the template:
+```bash
+cp config/.env.example config/.env
+```
+
+Edit `config/.env` with your Supabase credentials. For IPv4 connectivity (recommended), use the **Session pooler** connection string from Supabase Dashboard → Settings → Database → Connection string → Session pooler:
+```
+SHAREDPOOLER=postgresql://postgres.<project-ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres
+```
+
+Or set individual variables:
+```
+SUPABASE_HOST=aws-1-<region>.pooler.supabase.com
+SUPABASE_PORT=5432
+SUPABASE_DB=postgres
+SUPABASE_USER=postgres.<project-ref>
+SUPABASE_PASSWORD=<password>
+```
+
+### Run the dashboard:
+```bash
+streamlit run dashboard.py
+```
 
 ## Dashboard Features
 
 ### Navigation
 
-The dashboard has a sidebar with 6 main views:
+The dashboard has a sidebar with 7 main views:
 
 1. **Overview** - High-level statistics and analytics
 2. **Browse Datasets** - Explore all available economic indicators
 3. **Countries** - View all countries in the dataset
 4. **Aggregates** - Economic blocs and aggregates (OECD, EU, G7, etc.)
 5. **Regions** - World regions and geographical groupings
-6. **Data Explorer** - Search for specific data combinations
+6. **Metadata** - Integration health, pipeline runs, and per-metric coverage
+7. **Data Explorer** - Guided time-series exploration of actual loaded observations
 
 ### Key Features
 
@@ -54,20 +70,21 @@ The dashboard has a sidebar with 6 main views:
 - **Entity Selection**: Multiselect for exploring different combinations
 - **Provider Mappings**: Shows how provider codes map to canonical entities
 - **Real-time Updates**: Live statistics and dynamic filtering
+- **Metadata Page**: Integration health, pipeline run history, per-metric coverage with declared-vs-actual comparison
+- **Data Explorer**: Guided time-series exploration with Plotly charts, data tables, and CSV export
 
 ### Data Sources
 
-The dashboard loads data from:
+The dashboard reads from two sources:
 
-1. **`config/metrics.json`**: Contains all economic metrics (39+ datasets)
-   - Categories: Historical and Forecast
-   - Providers: WB (World Bank), OECD
-   - Time ranges: 1960-2060
+1. **Local configuration** (`config/metrics.json`, `src/entities.py`):
+   - Metric definitions (categories, providers, time ranges)
+   - Entity registry (countries, aggregates, regions)
 
-2. **`src/entities.py`**: Contains canonical entity registry
-   - 40+ countries (ISO-3166 alpha-3 codes)
-   - 9 aggregates (WLD, OECD, EMU, EA19, EUU, G20, G7, etc.)
-   - 13 regions (EAS, EAP, ECA, etc.)
+2. **Supabase PostgreSQL** (live data):
+   - `dbe_metrics`, `dbe_entities`, `dbe_observations`, `dbe_sources`, `dbe_pipeline_runs`
+   - View `v_dated_execution_snapshot` for time-series queries
+   - Connection via `config/.env` (Supabase Session pooler recommended for IPv4)
 
 ### Visualization Types
 
@@ -75,13 +92,15 @@ The dashboard loads data from:
 - **Bar Charts**: Unit and provider distributions
 - **Funnel Charts**: Provider data volume
 - **Interactive Maps**: Entity selection and visualization
+- **Time-Series Charts**: Interactive Plotly line charts in Data Explorer
 
 ### Usage Tips
 
 1. Use the search in "Browse Datasets" to quickly find specific indicators
 2. Filter by category or provider to narrow down results
-3. Use the "Data Explorer" to analyze specific data combinations
-4. The dashboard automatically loads and caches all data for fast performance
+3. Use the "Data Explorer" to analyze specific data combinations over time
+4. Use "Metadata" to check integration health, pipeline runs, and data coverage
+5. Click "Refresh Data" in the sidebar to reload cached data
 
 ## Customization
 
@@ -118,13 +137,14 @@ python -c "import dashboard; print('Dashboard imports successfully')"
 
 ### Performance
 
-The dashboard uses Streamlit's `@st.cache_data` decorator to cache data loading for better performance. The data is loaded once and reused across page navigations.
+The dashboard uses Streamlit's `@st.cache_data` decorator to cache database queries (TTL 60 seconds). The Refresh button clears the cache and re-reads `config/.env` for credential changes.
 
 ## Known Issues & Limitations
 
 1. **Entity Parsing**: The entities.py parser is a simplified version that may need refinement for complex cases
-2. **Data Loading**: The dashboard loads all data at once; for very large datasets, consider implementing lazy loading
+2. **Data Loading**: The dashboard now queries Supabase directly; large result sets are capped at 50,000 rows in the Data Explorer
 3. **Responsive Design**: Some elements may not display perfectly on very small screens
+4. **Credential Changes**: Use the "Refresh Data" button after editing `config/.env` to pick up new credentials without a restart
 
 ## License
 

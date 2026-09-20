@@ -6,15 +6,12 @@ actionable messages instead of being swallowed, and active connection checks are
 cached briefly so the UI stays responsive when the database is unreachable.
 """
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
 from sqlalchemy import bindparam, text
 from sqlalchemy.engine import Engine
-
-logger = logging.getLogger(__name__)
 
 
 class DashboardDataError(Exception):
@@ -181,8 +178,7 @@ def get_metric_coverage() -> pd.DataFrame:
             MIN(o.start_date)                     AS min_date,
             MAX(o.end_date)                       AS max_date,
             MAX(o.extracted_at)                   AS last_extracted_at,
-            string_agg(DISTINCT s.provider, ', ') AS providers,
-            string_agg(DISTINCT s.dataset, ', ')  AS datasets
+            string_agg(DISTINCT s.provider, ', ') AS providers
         FROM dbe_metrics m
         LEFT JOIN dbe_observations o ON o.metric_id = m.metric_id
         LEFT JOIN dbe_sources s      ON s.metric_id = m.metric_id

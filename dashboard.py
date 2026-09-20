@@ -137,7 +137,6 @@ def load_data():
                     parts = line.strip('(),').split(',')
                     if len(parts) >= 3:
                         entity_code = parts[0].strip('"\'')
-                        parts[1]  # entity_name
                         entity_type = parts[2].strip('"\'')
                         if entity_type == "country":
                             entities_data["countries"].append(entity_code)
@@ -187,7 +186,10 @@ def main():
     connected, conn_msg = dd.check_connection()
     if not connected:
         st.error(f"⚠️ Supabase connection failed: {conn_msg}")
-        st.info("Please ensure `config/.env` exists with valid SUPABASE_HOST and SUPABASE_PASSWORD.")
+        st.info(
+            "Ensure `config/.env` exists with valid Supabase credentials. "
+            "If using a pooler, set `ECONDATA_DATABASE_URL` (or `DATABASE_URL`/`SHAREDPOOLER`)."
+        )
     else:
         st.success(f"✅ Connected to Supabase: {conn_msg}")
 
