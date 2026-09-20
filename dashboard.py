@@ -1,5 +1,5 @@
-from datetime import datetime
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -92,6 +92,33 @@ st.markdown("""
 
     .stTextInput > label {
         font-weight: 600;
+        color: var(--text-color, #f5f5f5);
+    }
+
+    .stMultiSelect__selected {
+        background: var(--surface-alt, #1a1a1a);
+        color: var(--text-color, #f5f5f5);
+        border: 1px solid var(--border, #333333);
+        border-radius: 4px;
+        padding: 2px 8px;
+        margin: 2px;
+        display: inline-block;
+    }
+
+    .stMultiSelect span {
+        color: var(--text-color, #f5f5f5);
+    }
+
+    .stMultiSelect [data-baseweb="option"] {
+        color: var(--text-color, #f5f5f5);
+    }
+
+    .stMultiSelect [data-baseweb="option"]:hover {
+        background-color: var(--surface-alt, #1a1a1a);
+    }
+
+    .stMultiSelect div[data-baseweb="input"] {
+        background-color: var(--surface, #0f0f0f);
         color: var(--text-color, #f5f5f5);
     }
 </style>
