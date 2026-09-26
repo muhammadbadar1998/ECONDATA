@@ -4,7 +4,7 @@ from typing import Dict, List
 import psycopg2
 import psycopg2.extras
 
-from src.config import DEFAULT_DB_CONNECTION_STRING
+from src.config import get_default_db_connection_string
 from src.db import get_sqlalchemy_engine, init_db_schema
 from src.entities import AGGREGATE_MEMBERSHIP
 
@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 class DatabaseLoader:
     """Loads normalized dbe_* tables into PostgreSQL (Supabase) only."""
 
-    def __init__(self, connection_string: str = DEFAULT_DB_CONNECTION_STRING):
-        self.connection_string = connection_string
-        self.engine = get_sqlalchemy_engine(connection_string)
+    def __init__(self, connection_string: str = ""):
+        self.connection_string = connection_string or get_default_db_connection_string()
+        self.engine = get_sqlalchemy_engine(self.connection_string)
 
     def verify_or_init_schema(self) -> bool:
         return init_db_schema(self.connection_string)

@@ -3,6 +3,9 @@
 
 BEGIN;
 
+-- Creates the vector extension required for dbe_embeddings (pgvector).
+CREATE EXTENSION IF NOT EXISTS "vector";
+
 -- Create extension for uuid if needed
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -159,53 +162,36 @@ CREATE TABLE IF NOT EXISTS dbe_pipeline_runs (
 
 CREATE INDEX IF NOT EXISTS idx_dbe_pipeline_runs_timestamp ON dbe_pipeline_runs(run_timestamp);
 
--- Views for cross-sectional snapshots (replace wide tables)
+-- dbe_embeddings: Document store + vector index for the semantic catalog layer.
+-- Documents are built from metric/entity/summary data; embeddings are produced
+-- by Ollama-served nomic-embed-text (768-dim). See src/vectorizer.py.
+CREATE TABLE IF NOT EXISTS dbe_embeddings (
+    doc_id BIGSERIAL PRIMARY KEY,
+    doc_key VARCHAR(255) NOT NULL,
+    doc_type VARCHAR(64) NOT NULL,
+    content TEXT NOT NULL,
+    doc_hash VARCHAR(64) NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    embedding vector(768) NOT NULL,
+    embedding_model VARCHAR(128) NOT NULL DEFAULT 'nomic-embed-text',
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_embedding_doc UNIQUE (doc_key, doc_type)
+);
 
--- Latest country snapshot (wide matrix, dynamic columns)
-CREATE OR REPLACE VIEW v_latest_country_snapshot AS
-WITH latest_obs AS (
-    SELECT 
-        metric_id,
-        entity_id,
-        val,
-        start_date AS latest_date
-    FROM dbe_observations o1
-    WHERE NOT EXISTS (
-        SELECT 1 FROM dbe_observations o2
-        WHERE o2.metric_id = o1.metric_id 
-          AND o2.entity_id = o1.entity_id
-          AND o2.start_date > o1.start_date
-    )
-)
-SELECT 
-    e.entity_id,
-    e.entity_code,
-    e.entity_name,
-    e.is_aggregate,
-    COALESCE(m1.val, 0) AS gdp_usd_latest,
-    COALESCE(m1.latest_date, '1900-01-01'::date) AS gdp_usd_period,
-    COALESCE(m2.val, 0) AS gdp_growth_latest,
-    COALESCE(m2.latest_date, '1900-01-01'::date) AS gdp_growth_period,
-    COALESCE(m3.val, 0) AS inflation_cpi_latest,
-    COALESCE(m3.latest_date, '1900-01-01'::date) AS inflation_cpi_period,
-    COALESCE(m4.val, 0) AS unemployment_rate_latest,
-    COALESCE(m4.latest_date, '1900-01-01'::date) AS unemployment_rate_period,
-    COALESCE(m5.val, 0) AS population_latest,
-    COALESCE(m5.latest_date, '1900-01-01'::date) AS population_period,
-    COALESCE(m6.val, 0) AS current_account_balance_latest,
-    COALESCE(m6.latest_date, '1900-01-01'::date) AS current_account_balance_period,
-    COALESCE(m7.val, 0) AS govt_debt_gdp_latest,
-    COALESCE(m7.latest_date, '1900-01-01'::date) AS govt_debt_gdp_period,
-    CURRENT_DATE AS snapshot_date
-FROM dbe_entities e
-LEFT JOIN latest_obs m1 ON e.entity_id = m1.entity_id AND m1.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'gdp_usd')
-LEFT JOIN latest_obs m2 ON e.entity_id = m2.entity_id AND m2.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'gdp_growth')
-LEFT JOIN latest_obs m3 ON e.entity_id = m3.entity_id AND m3.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'inflation_cpi')
-LEFT JOIN latest_obs m4 ON e.entity_id = m4.entity_id AND m4.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'unemployment_rate')
-LEFT JOIN latest_obs m5 ON e.entity_id = m5.entity_id AND m5.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'population')
-LEFT JOIN latest_obs m6 ON e.entity_id = m6.entity_id AND m6.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'current_account_balance')
-LEFT JOIN latest_obs m7 ON e.entity_id = m7.entity_id AND m7.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = 'govt_debt_gdp')
-WHERE e.is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_key ON dbe_embeddings(doc_key, doc_type);
+CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_hash ON dbe_embeddings(doc_hash);
+CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_model ON dbe_embeddings(embedding_model);
+-- HNSW index for fast approximate nearest-neighbour search (cosine distance).
+CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_hnsw
+    ON dbe_embeddings
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 200);
+
+-- Views for cross-sectional snapshots (replace wide tables)
+--
+-- The old v_latest_country_snapshot view was dropped: it was hardcoded to exactly
+-- 7 metrics and used COALESCE(...,0), which conflated "no data" with "zero".
+-- Use v_latest_metrics_snapshot (long format) + dbe_embeddings for catalog search instead.
 
 -- Latest metrics snapshot (long format)
 CREATE OR REPLACE VIEW v_latest_metrics_snapshot AS

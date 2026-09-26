@@ -97,7 +97,21 @@ def get_supabase_connection_string() -> str:
     return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
 
 
-DEFAULT_DB_CONNECTION_STRING = get_supabase_connection_string()
+def _default_db_connection_string() -> str:
+    """Resolver used by modules that need a connection string at import time.
+
+    Kept lazy so importing :mod:`src.config` (and therefore every module in the
+    package) does NOT raise when Supabase credentials are not yet present in the
+    environment. The string is only materialized on first access.
+    """
+    return get_supabase_connection_string()
+
+
+# Backwards-compatible alias. Resolved at call time (not import time) so that
+# importing this module never raises when DB credentials are unavailable.
+def get_default_db_connection_string() -> str:
+    return _default_db_connection_string()
+
 
 def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
     """Loads metrics configuration and pipeline settings from JSON file."""

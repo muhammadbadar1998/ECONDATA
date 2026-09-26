@@ -18,8 +18,9 @@ The pipeline connects to Supabase PostgreSQL and manages the normalized `dbe_*` 
 | `dbe_entity_membership` | Aggregate → member entity relationships |
 | `dbe_observations` | Typed time-series core `(metric_id, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str)` |
 | `dbe_pipeline_runs` | Extended execution audit log |
+| `dbe_embeddings` | Document vectors (pgvector) for the semantic catalog layer |
 
-Views: `v_latest_country_snapshot`, `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`.
+Views: `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`.
 
 ---
 
@@ -29,7 +30,7 @@ Views: `v_latest_country_snapshot`, `v_latest_metrics_snapshot`, `v_dated_execut
 - **Never commit a real password.** Rotate it if exposed.
 - In Supabase: disable the public `anon` role for `dbe_*` and restrict access by IP allowlist (no `0.0.0.0/0`).
 
-> **Full step-by-step deployment** (password rotation, Supabase hardening, schema init, live extraction, and Airflow scheduling): see [docs/DEPLOY.md](docs/DEPLOY.md).
+> **Full step-by-step deployment** (password rotation, Supabase hardening, schema init, live extraction): see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ---
 
@@ -60,11 +61,16 @@ python -m src.main --metrics all --db
 python -m src.main --metrics gdp_usd population --db
 ```
 
-### 5. Airflow Orchestration (Docker)
+### 5. (Optional) Semantic Catalog — Embed & Search
 ```bash
-docker compose -f airflow/docker-compose.airflow.yml up
+# Build embedding documents (catalog + series summaries) into dbe_embeddings
+python -m src.main --vectorize
+
+# Force re-embedding of all documents
+python -m src.main --reembed
 ```
-The `econdata_pipeline` DAG runs one idempotent load task per metric on a daily schedule.
+Requires [Ollama](https://ollama.com/) serving `nomic-embed-text`
+(`ollama serve` then `ollama pull nomic-embed-text`). See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md).
 
 ---
 

@@ -8,9 +8,9 @@ from typing import List
 
 from src.config import (
     DEFAULT_CONFIG_PATH,
-    DEFAULT_DB_CONNECTION_STRING,
     DEFAULT_OUTPUT_DIR,
     LOGS_DIR_NAME,
+    get_default_db_connection_string,
     load_pipeline_config,
 )
 from src.db import init_db_schema
@@ -57,7 +57,7 @@ def run_pipeline(
     output_dir: str,
     config_path: str = DEFAULT_CONFIG_PATH,
     load_to_db: bool = False,
-    connection_string: str = DEFAULT_DB_CONNECTION_STRING
+    connection_string: str = ""
 ):
     """Executes the normalized economic data extraction pipeline."""
     logger = setup_logger(output_dir)
@@ -78,6 +78,8 @@ def run_pipeline(
     resolver = EntityResolver()
 
     if load_to_db:
+        if not connection_string:
+            connection_string = get_default_db_connection_string()
         db_loader = DatabaseLoader(connection_string=connection_string)
         logger.info("Verifying/Initializing PostgreSQL 'dbe_' database schema...")
         if not db_loader.verify_or_init_schema():
@@ -158,8 +160,14 @@ def main():
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Path to output directory for logs")
     parser.add_argument("--db", action="store_true", help="Enable Database ingestion into dbe_* tables")
     parser.add_argument("--init-db", action="store_true", help="Only initialize dbe_* database tables schema and exit")
-    parser.add_argument("--check-db", action="store_true", help="Test Supabase connectivity only (no schema changes) and exit")
-    parser.add_argument("--connection-string", default=DEFAULT_DB_CONNECTION_STRING, help="Supabase PostgreSQL connection string")
+    parser.add_argument(
+        "--check-db",
+        action="store_true",
+        help="Test Supabase/PostgreSQL connectivity only (no schema changes) and exit",
+    )
+    parser.add_argument("--vectorize", action="store_true", help="Build and persist embedding documents (catalog/summary) into dbe_embeddings without fetching source data")
+    parser.add_argument("--reembed", action="store_true", help="Force re-embedding of all documents in dbe_embeddings (recompute changed + orphans)")
+    parser.add_argument("--connection-string", default="", help="Supabase PostgreSQL connection string (overrides env config)")
 
     args = parser.parse_args()
 
@@ -192,6 +200,26 @@ def main():
             sys.exit(0)
         else:
             logger.error("Failed to initialize database schema.")
+            sys.exit(1)
+
+    connection_string = args.connection_string or get_default_db_connection_string()
+
+    from src.vectorizer import Vectorizer
+
+    if args.vectorize or args.reembed:
+        logger = setup_logger(args.output_dir)
+        logger.info(f"Starting document vectorization (reembed={args.reembed})...")
+        try:
+            vectorizer = Vectorizer(connection_string=connection_string, force_reembed=args.reembed)
+            stats = vectorizer.vectorize_all()
+            logger.info(
+                f"Vectorization complete: embedded={stats['embedded']} "
+                f"updated={stats['updated']} orphans_removed={stats['orphans_removed']} "
+                f"errors={stats['errors']}."
+            )
+            sys.exit(0)
+        except Exception as e:
+            logger.error(f"Vectorization FAILED: {e}", exc_info=True)
             sys.exit(1)
 
     if "all" in args.metrics:

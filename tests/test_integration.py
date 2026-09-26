@@ -96,14 +96,17 @@ def test_full_normalized_pipeline_idempotent():
         cur.execute("SELECT count(*) FROM dbe_observations")
         assert cur.fetchone()[0] == total, "idempotency broken: duplicate rows inserted"
 
-    # 6. Views reflect correct latest values.
+    # 6. Views reflect correct latest values (long-format snapshot now that the
+    #    hardcoded wide v_latest_country_snapshot view has been dropped).
     with loader.engine.raw_connection() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT gdp_usd_latest, gdp_usd_period FROM v_latest_country_snapshot "
-            "WHERE entity_code='USA'"
+            "SELECT value, period FROM v_latest_metrics_snapshot "
+            "WHERE country_code='USA' AND metric_code='gdp_usd'"
         )
-        latest, period = cur.fetchone()
+        latest_row = cur.fetchone()
+        assert latest_row is not None, "USA gdp_usd missing from v_latest_metrics_snapshot"
+        latest, period = latest_row
         assert latest == 27000000.0, f"unexpected latest {latest}"
         assert str(period) == "2024-01-01"
 

@@ -139,26 +139,6 @@ class DataTransformer:
         return final
 
     @staticmethod
-    def transform_countries_catalog(raw_countries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Cleans country metadata docs into a canonical list."""
-        rows = []
-        for c in raw_countries:
-            code = str(c.get("country_code", "")).upper()
-            if not code:
-                continue
-            rows.append({
-                "entity_code": code,
-                "entity_name": str(c.get("country_name", code)).strip(),
-                "provider": c.get("provider", "WB"),
-                "dataset": c.get("dataset", "WDI"),
-            })
-        # Dedupe by code
-        seen = {}
-        for r in rows:
-            seen.setdefault(r["entity_code"], r)
-        return list(seen.values())
-
-    @staticmethod
     def create_metrics_records(catalog: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Converts the metrics catalog dict into registry records including

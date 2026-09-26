@@ -90,35 +90,3 @@ class DBnomicsExtractor:
             offset += limit
 
         return all_series
-
-    def fetch_countries_metadata(self, provider: str = "WB", dataset: str = "WDI") -> List[Dict[str, Any]]:
-        """
-        Fetch country dimension metadata from dataset provider.
-        """
-        url = f"{self.base_url}/series/{provider}/{dataset}"
-        params = {"limit": 1}
-        logger.info(f"Fetching country metadata from dataset {provider}/{dataset}...")
-
-        data = self._get_with_retry(url, params=params)
-        dataset_info = data.get("dataset", {})
-        dimensions_values_labels = dataset_info.get("dimensions_values_labels", {})
-
-        country_dict = dimensions_values_labels.get("country", {})
-        if not country_dict:
-            country_dict = dimensions_values_labels.get("ref_area", {})
-        if not country_dict:
-            country_dict = dimensions_values_labels.get("weo-country-code", {})
-        if not country_dict:
-            country_dict = dimensions_values_labels.get("LOCATION", {})
-
-        countries_list = []
-        for code, label in country_dict.items():
-            countries_list.append({
-                "country_code": code,
-                "country_name": label,
-                "provider": provider,
-                "dataset": dataset
-            })
-
-        logger.info(f"Extracted {len(countries_list)} country definitions from {provider}/{dataset}.")
-        return countries_list

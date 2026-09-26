@@ -11,10 +11,8 @@ This document serves as the developer guide and architecture manual for the **Gl
 | Task | Command |
 | :--- | :--- |
 | **Run Full Pipeline (Supabase PostgreSQL)** | `python -m src.main --metrics all --db` |
-| **Run Incremental Update for Specific Metrics** | `python -m src.main --metrics forecast_gdp_longterm_oecd forecast_gdp_growth_gep --db` |
-| **Run with Custom JSON Configuration** | `python -m src.main --config ./config/metrics.json --metrics all --db` |
 | **Initialize Database Schemas Only** | `python -m src.main --init-db` |
-| **Run via Airflow (Docker)** | `docker compose -f airflow/docker-compose.airflow.yml up` |
+| **Embed catalog / series summaries** | `python -m src.main --vectorize` |
 
 ---
 
@@ -110,26 +108,22 @@ Extended metric fields:
 econdata/
 ├── config/
 │   ├── metrics.json                # Master JSON configuration for all metrics & period filters
-│   ├── .env.example                # Env var template (Supabase PostgreSQL only)
-│   └── SUPABASE.env.example        # Supabase-specific env template
+│   └── .env.example                # Env var template (Supabase + Ollama)
 ├── sql/
-│   └── dbe_postgres_schema.sql     # Normalized PostgreSQL DDL (Supabase) + views
+│   └── dbe_postgres_schema.sql     # Normalized PostgreSQL DDL (Supabase) + vector embeddings table
 ├── src/
-│   ├── config.py                   # Env-based Supabase connection + JSON loader
-│   ├── config_loader.py            # (legacy) JSON loader w/ extended field defaults
+│   ├── config.py                   # Lazy env-based Supabase connection + JSON loader
 │   ├── extractor.py                # DBnomics REST reader w/ retries (WB/IMF/OECD)
 │   ├── transformer.py              # Normalization: typed dates, entity resolution, unit normalization, dedupe
 │   ├── helpers.py                  # Period-literal parsing + safe unit normalization
 │   ├── entities.py                 # Canonical entity + alias + membership seed data
-│   ├── entity_resolver.py          # Provider code → canonical entity resolver (no fabricated names)
+│   ├── entity_resolver.py          # Provider code → canonical entity resolver
 │   ├── db.py                       # SQLAlchemy engine factory (PostgreSQL only) + DDL executor
 │   ├── db_loader.py                # Idempotent bulk loader into normalized dbe_* tables
-│   ├── tasks/                      # Discrete Airflow tasks (extract/transform/load per metric)
+│   ├── embeddings.py               # Ollama nomic-embed-text HTTP client
+│   ├── vectorizer.py               # Catalog/series document builder + embed/search
 │   └── main.py                     # CLI orchestrator
-├── airflow/
-│   ├── docker-compose.airflow.yml  # Airflow scheduler + webserver + Postgres/Redis
-│   └── dags/econdata_pipeline.py   # Daily DAG, one task per metric
-└── tests/                          # pytest unit tests + ruff config (pyproject.toml)
+└── tests/                          # pytest unit + opt-in integration tests (pyproject.toml)
 ```
 
 ---
@@ -148,9 +142,9 @@ All tables are prefixed with `dbe_` and live in the `public` schema:
 8. **`dbe_pipeline_runs`**: Extended audit log (dag/task, counts, providers, source_ids).
 
 ### Views (replace the old wide snapshots)
-- `v_latest_country_snapshot` — pivoted latest value per entity/metric, built dynamically from normalized data (new metrics appear automatically).
 - `v_latest_metrics_snapshot` — long-format latest value per `(entity, metric)`.
 - `v_dated_execution_snapshot` — full observation history.
+- `dbe_embeddings` — pgvector document store for catalog search (indexed via HNSW).
 
 ---
 
@@ -168,8 +162,9 @@ All tables are prefixed with `dbe_` and live in the `public` schema:
 python -m src.main --metrics all --db
 ```
 
-### Running with Airflow
+### Running the Pipeline
+
 ```bash
-docker compose -f airflow/docker-compose.airflow.yml up
+python -m src.main --metrics all --db
 ```
-The DAG `econdata_pipeline` runs one idempotent load task per metric on a daily schedule.
+

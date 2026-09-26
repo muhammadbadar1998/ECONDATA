@@ -1,12 +1,11 @@
 # EconData — Deployment Runbook
 
 This is the operational guide to get the normalized pipeline live against a
-private **Supabase PostgreSQL** database, then scheduled via **Airflow**.
+private **Supabase PostgreSQL** database, then run it via the CLI (cron/manual).
 
 Prerequisites (already done in the repo):
-- Normalized schema `sql/dbe_postgres_schema.sql`
+- Normalized schema `sql/dbe_postgres_schema.sql` (now includes `dbe_embeddings`)
 - Config/registry/entity code fully built and integration-tested
-- Airflow DAG + compose files present (`airflow/`)
 - Unit + integration tests in `tests/`
 
 > **Security rule that overrides everything:** this database is private. Only the
@@ -118,9 +117,8 @@ Sanity-check afterward (Supabase SQL editor):
     join dbe_metrics m on m.metric_id = o.metric_id
     group by m.metric_code order by 1;
 
-    select entity_code, gdp_usd_latest, gdp_usd_period
-    from v_latest_country_snapshot
-    where entity_code in ('USA','DEU');
+    select country_code, metric_code, value from v_latest_metrics_snapshot
+    where country_code in ('USA','DEU') and metric_code='gdp_usd'
 
 Re-running is safe — it upserts, never duplicates.
 
@@ -134,25 +132,32 @@ Re-running is safe — it upserts, never duplicates.
 
 ---
 
-## Step 8 — Schedule with Airflow (Docker)
+## Step 8 — Schedule the Pipeline (cron / manual)
 
-    docker compose -f airflow/docker-compose.airflow.yml up
+Airflow has been removed. Schedule the CLI directly, e.g. via cron:
 
-- Airflow webserver opens on `http://localhost:8080`.
-- DAG `econdata_pipeline` runs daily, one idempotent load task per metric.
-- `config/.env` is mounted for secrets; `src/` and `airflow/dags/` are mounted so
-  agents and tasks share the same code.
+    0 4 * * * /opt/econdata/.venv/bin/python -m src.main --metrics all --db >> /var/log/econdata/pipeline.log 2>&1
 
-> The DAG is Python-syntax-validated but **not yet executed against a live Airflow
-> install** — manually trigger it in the Airflow UI and watch the first run before
-> relying on the schedule.
+- Runs the idempotent full extraction + upsert once daily at 04:00.
+- Re-runs are safe (idempotent upserts, no duplicates).
+- For one-off runs, just execute the same command manually:
 
 ---
 
-## Step 9 — (Optional) CSV backups
+## Step 9 — (Optional) Semantic Catalog — Embeddings
 
-`src/storage.py` remains for local CSV backups if wanted. The normalized flow is
-Postgres-first; CSV is not required for the Supabase source of truth.
+Enable the pgvector extension in Supabase (`CREATE EXTENSION vector;` is already
+in the DDL), then run:
+
+    python -m src.main --vectorize      # build & persist catalog/series embeddings
+    python -m src.main --reembed        # force recompute of all vectors
+
+Requires Ollama: `ollama serve` + `ollama pull nomic-embed-text`.
+
+## Step 10 — CSV Backups
+
+Local CSV export/import helpers were removed with the storage module. The
+normalized flow is Postgres-first; use `COPY`/`pg_dump` for backups.
 
 ---
 
