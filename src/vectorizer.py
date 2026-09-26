@@ -53,6 +53,18 @@ def _format_scalar(v: float) -> str:
     return repr(f)
 
 
+def _coerce_db_value(value: Any) -> Any:
+    """Convert non-JSON-serializable DB types (e.g. Decimal) to native Python."""
+    from decimal import Decimal
+
+    if isinstance(value, Decimal):
+        # Integer-valued decimals (counts/years) -> int; otherwise float.
+        if value == value.to_integral_value():
+            return int(value)
+        return float(value)
+    return value
+
+
 @dataclass
 class Document:
     doc_key: str
@@ -213,7 +225,9 @@ class Vectorizer:
                 cur.execute(sql)
                 cols = [d[0] for d in cur.description]
                 for row in cur.fetchall():
-                    rows.append(dict(zip(cols, row, strict=True)))
+                    row_dict = dict(zip(cols, row, strict=True))
+                    row_dict = {k: _coerce_db_value(v) for k, v in row_dict.items()}
+                    rows.append(row_dict)
         return rows
 
     # ------------------------------------------------------------------ #

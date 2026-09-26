@@ -1,9 +1,12 @@
 """Unit tests for src.vectorizer document builders and helpers (pure functions)."""
 
+from decimal import Decimal
+
 from src.entities import ENTITIES
 from src.vectorizer import (
     Document,
     Vectorizer,
+    _coerce_db_value,
     _format_scalar,
     _vector_to_literal,
 )
@@ -108,3 +111,11 @@ def test_document_dataclass_fields():
     d = Document(doc_key="x", doc_type="metric", content="hello", metadata={"a": 1})
     assert d.doc_hash  # derived
     assert isinstance(d.doc_hash, str)
+
+
+def test_coerce_db_value_decimal():
+    assert _coerce_db_value(Decimal("60")) == 60
+    assert isinstance(_coerce_db_value(Decimal("3.5")), float)
+    assert _coerce_db_value(Decimal("3.5")) == 3.5
+    assert _coerce_db_value("plain") == "plain"
+    assert _coerce_db_value(42) == 42
