@@ -42,6 +42,13 @@ All notable changes to this project are documented here. Format loosely follows
   cosine index.
 - CLI: `python -m src.main --vectorize` and `--reembed`.
 
+### Added (Ollama runtime)
+- Installed Ollama binary service on the host and pulled `nomic-embed-text`.
+- Added `ollama>=0.3.0` Python SDK to `requirements.txt` (documents the
+  runtime; the embedder also works via raw `requests` as a fallback).
+- Fixed `OllamaEmbedder.verify_connectivity` false-negative (model names
+  returned by `/api/tags` carry a `:latest` suffix).
+
 ### Changed
 - `requirements.txt`: removed `streamlit`, `plotly`; documented Ollama as an
   external service (uses `requests`).
