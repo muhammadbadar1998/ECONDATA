@@ -6,10 +6,15 @@ tqdm>=4.65.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
 
+# Embeddings runtime
+# The Ollama Python SDK + a running Ollama service are required for the
+# semantic catalog layer (--vectorize / --reembed). Install the service:
+#   winget install Ollama.Ollama   (or https://ollama.com/download)
+# Then serve + pull the model:
+#   ollama serve
+#   ollama pull nomic-embed-text
+ollama>=0.3.0
+
 # Tests / linting
 pytest>=8.0.0
 ruff>=0.4.0
-
-# Embeddings runtime: Ollama is an external service (run `ollama serve` +
-# `ollama pull nomic-embed-text`). No Python package required — HTTP calls use
-# `requests` (already listed above).

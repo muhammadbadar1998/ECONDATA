@@ -59,7 +59,8 @@ class OllamaEmbedder:
             )
             resp.raise_for_status()
             tags = resp.json().get("models", [])
-            loaded = {m.get("model") for m in tags}
+            # Ollama /api/tags returns model names with a ":latest" (or other) tag.
+            loaded = {m.get("model", "").split(":")[0] for m in tags}
             if self.model not in loaded:
                 logger.warning(
                     "Ollama model %r not in /api/tags (%s); "

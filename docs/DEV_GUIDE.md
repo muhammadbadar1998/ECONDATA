@@ -11,11 +11,14 @@ and all Docker files have been removed; scheduling is manual (e.g. cron).
 - **Python 3.10+**
 - **PostgreSQL** with the `vector` extension (Supabase has it; self-hosted Postgres
   ≥11 needs `CREATE EXTENSION vector;`).
-- **Ollama** (for the semantic catalog layer):
-  ```bash
-  ollama serve            # in a terminal / systemd service
-  ollama pull nomic-embed-text   # 768-dim embeddings
-  ```
+  - **Ollama** (for the semantic catalog layer): install the service **and** the
+    Python SDK (the SDK is in `requirements.txt` as `ollama>=0.3.0`):
+    ```bash
+    ollama serve            # in a terminal / systemd service / Windows service
+    ollama pull nomic-embed-text   # 768-dim embeddings
+    ```
+    The pipeline also uses raw `requests` calls as a fallback, but the SDK is
+    available for ad-hoc use and health checks.
 
 ## Setup
 ```bash
