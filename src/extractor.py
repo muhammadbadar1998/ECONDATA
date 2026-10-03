@@ -65,6 +65,7 @@ class DBnomicsExtractor:
             dimensions_filter = json.dumps({"indicator": [indicator_code]})
 
         logger.info(f"Fetching series for '{metric_code}' (Indicator: {indicator_code}) from {provider}/{dataset}...")
+        logger.debug("GET %s dimensions=%s limit=%d", url, dimensions_filter, limit)
 
         all_series = []
         offset = 0
@@ -89,4 +90,5 @@ class DBnomicsExtractor:
 
             offset += limit
 
+        logger.debug("Finished fetch for '%s': %d series.", metric_code, len(all_series))
         return all_series

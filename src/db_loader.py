@@ -36,6 +36,7 @@ class DatabaseLoader:
             VALUES %s
             ON CONFLICT ({conflict}) {conflict_action};
         """
+        logger.debug("Upserting %d row(s) into %s (conflict: %s).", len(rows), table, conflict)
         conn = self.engine.raw_connection()
         try:
             cur = conn.cursor()
@@ -171,6 +172,7 @@ class DatabaseLoader:
             metric_ids = {code: mid for mid, code in cur.fetchall()}
             cur.execute("SELECT source_id, metric_code FROM dbe_sources s JOIN dbe_metrics m ON m.metric_id = s.metric_id")
             source_ids = {code: sid for sid, code in cur.fetchall()}
+        logger.debug("Resolved %d metric ids and %d source ids.", len(metric_ids), len(source_ids))
         return metric_ids, source_ids
 
     # ---- Observations ----

@@ -14,14 +14,13 @@ the sources of the last answer.
 
 import argparse
 import logging
-import os
 import sys
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, TextIO, Tuple
 
-from src.config import DEFAULT_OUTPUT_DIR, LOGS_DIR_NAME, get_rag_top_k
+from src.config import DEFAULT_OUTPUT_DIR, get_rag_top_k
 from src.embeddings import OllamaEmbedder
 from src.llm import LLMClient, LLMError
+from src.logging_config import setup_logging
 from src.rag import DEFAULT_SYSTEM_PROMPT, RagAnswerer
 
 logger = logging.getLogger(__name__)
@@ -34,29 +33,12 @@ EXIT_COMMANDS = frozenset({"exit", "quit", ":q", "/exit", "/quit"})
 
 
 def setup_logger(output_dir: str) -> logging.Logger:
-    """Configure logging: stdout plus ``output/logs/chat_<date>.log`` and ``output/chat.log``."""
-    log = logging.getLogger("EconDataChat")
-    log.setLevel(logging.INFO)
-    log.handlers.clear()
-    log.propagate = False
+    """Configure stderr plus ``output/logs/chat_<date>.log`` and ``output/chat.log``.
 
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
-    stdout_handler = logging.StreamHandler(sys.stderr)
-    stdout_handler.setFormatter(formatter)
-    log.addHandler(stdout_handler)
-
-    logs_dir = os.path.join(output_dir, LOGS_DIR_NAME)
-    os.makedirs(logs_dir, exist_ok=True)
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    for path in (
-        os.path.join(logs_dir, f"chat_{date_str}.log"),
-        os.path.join(output_dir, "chat.log"),
-    ):
-        handler = logging.FileHandler(path, encoding="utf-8")
-        handler.setFormatter(formatter)
-        log.addHandler(handler)
-    return log
+    Uses the shared root-logger configuration so ``src.rag``/``src.llm`` records
+    are captured too; stderr keeps stdout clean for piped answers.
+    """
+    return setup_logging(output_dir, basename="chat", console_stream=sys.stderr)
 
 
 def format_sources(docs: Sequence[Dict[str, Any]]) -> str:

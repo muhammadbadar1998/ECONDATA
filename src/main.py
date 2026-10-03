@@ -1,15 +1,12 @@
 import argparse
 import logging
-import os
 import sys
 import time
-from datetime import datetime, timezone
 from typing import List
 
 from src.config import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_OUTPUT_DIR,
-    LOGS_DIR_NAME,
     get_default_db_connection_string,
     load_pipeline_config,
 )
@@ -17,39 +14,19 @@ from src.db import init_db_schema
 from src.db_loader import DatabaseLoader
 from src.entity_resolver import EntityResolver
 from src.extractor import DBnomicsExtractor
+from src.logging_config import setup_logging
 from src.transformer import DataTransformer
 
 
 def setup_logger(output_dir: str) -> logging.Logger:
-    """Configures multi-destination logging: stdout + file logging in output/logs/."""
-    logger = logging.getLogger("EconDataPipeline")
-    logger.setLevel(logging.INFO)
-    logger.handlers.clear()
+    """Configure stdout + text-file logging and return the pipeline entry logger.
 
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(formatter)
-    logger.addHandler(stdout_handler)
-
-    logs_dir = os.path.join(output_dir, LOGS_DIR_NAME)
-    os.makedirs(logs_dir, exist_ok=True)
-
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    log_filename = f"pipeline_{date_str}.log"
-    log_filepath = os.path.join(logs_dir, log_filename)
-    main_log_filepath = os.path.join(output_dir, "pipeline.log")
-
-    file_handler = logging.FileHandler(log_filepath, encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
-    main_file_handler = logging.FileHandler(main_log_filepath, encoding="utf-8")
-    main_file_handler.setFormatter(formatter)
-    logger.addHandler(main_file_handler)
-
-    logger.info(f"Logging initialized. Output log files: {log_filepath} and {main_log_filepath}")
-    return logger
+    Delegates to :func:`src.logging_config.setup_logging`, which configures the
+    root logger so every module's ``logging.getLogger(__name__)`` record is
+    written to ``output/logs/pipeline_<date>.log`` and ``output/pipeline.log``.
+    """
+    setup_logging(output_dir, basename="pipeline")
+    return logging.getLogger("EconDataPipeline")
 
 
 def run_pipeline(
@@ -111,6 +88,7 @@ def run_pipeline(
         metric_info = metrics_catalog[metric_code]
         provider = metric_info.get("provider", "WB")
         providers_touched.add(provider)
+        metric_start = time.time()
 
         try:
             logger.info(f"--> [{idx}/{len(metrics_to_run)}] Extracting '{metric_code}' ({metric_info.get('category', 'historical')}) from {provider}/{metric_info.get('dataset', 'WDI')}...")
@@ -119,16 +97,23 @@ def run_pipeline(
                 metric_code, raw_series, catalog=metrics_catalog, entity_resolver=resolver
             )
             total_observations += len(obs_records)
-            logger.info(f"--> [{idx}/{len(metrics_to_run)}] Transformed {len(obs_records)} observations.")
 
+            upserted = 0
             if db_loader:
                 mid = metric_ids.get(metric_code)
                 sid = source_ids.get(metric_code)
                 if mid and sid:
-                    n = db_loader.upsert_observations(metric_code, obs_records, mid, sid)
-                    observations_upserted += n
+                    upserted = db_loader.upsert_observations(metric_code, obs_records, mid, sid)
+                    observations_upserted += upserted
                 else:
                     logger.warning(f"No metric/source id for '{metric_code}'; skipping DB load.")
+
+            logger.info(
+                f"--> [{idx}/{len(metrics_to_run)}] '{metric_code}' done: "
+                f"{len(obs_records)} observations"
+                + (f", {upserted} upserted" if db_loader else "")
+                + f" in {time.time() - metric_start:.2f}s."
+            )
         except Exception as e:
             logger.error(f"Error extracting metric '{metric_code}': {e}", exc_info=True)
 

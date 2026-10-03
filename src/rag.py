@@ -103,7 +103,9 @@ class RagAnswerer:
         """
         if not question or not question.strip():
             return []
-        return self._get_vectorizer().search_documents(question.strip(), k=k or self.k)
+        docs = self._get_vectorizer().search_documents(question.strip(), k=k or self.k)
+        logger.info("Retrieved %d document(s) for query %r.", len(docs), question.strip()[:80])
+        return docs
 
     # ------------------------------------------------------------------ #
     # Step 2 — prompt assembly
@@ -163,10 +165,12 @@ class RagAnswerer:
             return NO_CONTEXT_ANSWER, []
 
         messages = self.build_messages(question, docs, history)
+        logger.info("Querying LLM with %d context document(s).", len(docs))
         message = self.llm.chat(messages)
         text = (message.get("content") or "").strip() if isinstance(message, dict) else ""
         if not text:
             text = "The model returned an empty answer for this question."
+        logger.debug("LLM answer length: %d character(s).", len(text))
 
         if isinstance(history, list):
             history.append({"role": "user", "content": question})

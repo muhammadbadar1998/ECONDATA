@@ -147,6 +147,7 @@ class LLMClient:
         payload = self.build_payload(messages, tools)
         headers = self._headers()
         last_error: Optional[str] = None
+        started = time.monotonic()
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -179,7 +180,13 @@ class LLMClient:
                     last_error = f"HTTP {status}: {_safe_detail(resp)}"
                     logger.warning("LLM attempt %d/%d failed: %s", attempt, self.max_retries, last_error)
                 else:
-                    return self._parse_message(resp)
+                    message = self._parse_message(resp)
+                    logger.info(
+                        "Chat completion succeeded in %.2fs (model=%s).",
+                        time.monotonic() - started,
+                        self.model,
+                    )
+                    return message
 
             if attempt < self.max_retries:
                 time.sleep(2 ** attempt)

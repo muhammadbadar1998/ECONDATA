@@ -64,6 +64,7 @@ class EntityResolver:
 
         if provider in ("WB", "OECD", "IMF") and self._looks_like_iso3(provider_code):
             self._alias_cache[key] = provider_code.upper()
+            logger.debug("Accepted %s/%s as canonical entity %s.", provider, provider_code, provider_code.upper())
             return provider_code.upper()
 
         return None
@@ -121,4 +122,9 @@ class EntityResolver:
                 "provider_code": pcode,
                 "entity_code": ccode,
             })
+        logger.info(
+            "Prepared %d entity rows and %d alias rows for seeding.",
+            len(entities_rows),
+            len(aliases_rows),
+        )
         return entities_rows, aliases_rows

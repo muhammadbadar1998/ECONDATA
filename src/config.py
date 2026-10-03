@@ -199,6 +199,7 @@ def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, An
                 "aggregation": item.get("aggregation", "mean"),
             }
 
+        logger.debug("Loaded %d metric definitions from %s.", len(metrics_catalog), config_path)
         return {
             "settings": settings,
             "metrics": metrics_catalog

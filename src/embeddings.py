@@ -81,6 +81,12 @@ class OllamaEmbedder:
         dimension-validated against ``embedding_dim``.
         """
         results: List[List[float]] = []
+        logger.info(
+            "Embedding %d text(s) with model %s in batches of %d.",
+            len(texts),
+            self.model,
+            self.batch_size,
+        )
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
             embeddings = self._embed_batch(batch)
@@ -119,6 +125,7 @@ class OllamaEmbedder:
                     )
                 for vec in embeddings:
                     self._validate_vector(vec)
+                logger.debug("Embedded batch of %d text(s).", len(texts))
                 return embeddings
             except (requests.RequestException, ValueError) as exc:
                 last_exc = exc

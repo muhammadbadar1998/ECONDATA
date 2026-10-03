@@ -2,7 +2,7 @@ import logging
 import os
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 
 from src.config import get_default_db_connection_string
 
@@ -21,6 +21,12 @@ def get_sqlalchemy_engine(connection_string: str = "") -> Engine:
     if not connection_string:
         connection_string = get_default_db_connection_string()
     if "postgresql" in connection_string or "postgres" in connection_string:
+        try:
+            target = make_url(connection_string)
+            # Host/port/db only — never the password.
+            logger.info("Creating PostgreSQL engine (host=%s port=%s db=%s).", target.host, target.port, target.database)
+        except Exception:  # malformed URL; the engine will surface the real error
+            logger.debug("Could not parse connection target for logging.")
         engine = create_engine(
             connection_string,
             pool_pre_ping=True,

@@ -421,15 +421,24 @@ class Vectorizer:
         from src.entities import ENTITIES
 
         catalog = self._fetch_catalog()
-        docs: List[Document] = []
-        docs.extend(self.build_metric_documents(catalog))
-        docs.extend(self.build_entity_documents(ENTITIES))
+        metric_docs = self.build_metric_documents(catalog)
+        entity_docs = self.build_entity_documents(ENTITIES)
+        docs: List[Document] = list(metric_docs) + list(entity_docs)
 
+        coverage_docs: List[Document] = []
         try:
             coverage = self._fetch_entity_metric_coverage(recent_points=recent_points)
-            docs.extend(self.build_entity_metric_documents(coverage))
+            coverage_docs = self.build_entity_metric_documents(coverage)
+            docs.extend(coverage_docs)
         except psycopg2.Error as exc:
             logger.warning("Skipping entity_metric documents: %s", exc)
+        logger.info(
+            "Built %d documents (%d metric, %d entity, %d entity_metric).",
+            len(docs),
+            len(metric_docs),
+            len(entity_docs),
+            len(coverage_docs),
+        )
         return docs
 
     def vectorize_all(self, recent_points: int = DEFAULT_RECENT_POINTS) -> Dict[str, int]:
@@ -464,6 +473,13 @@ class Vectorizer:
             new_set[(doc.doc_key, doc.doc_type)] = doc.doc_hash
             if self.force_reembed or existing.get((doc.doc_key, doc.doc_type)) != doc.doc_hash:
                 to_embed.append(doc)
+
+        logger.info(
+            "Vectorization plan: %d document(s), %d to embed, %d already current.",
+            len(docs),
+            len(to_embed),
+            len(docs) - len(to_embed),
+        )
 
         embedded = 0
         errors = 0
@@ -588,4 +604,10 @@ class Vectorizer:
                             "similarity": float(similarity),
                         }
                     )
+        if results:
+            logger.debug(
+                "Search returned %d document(s); top similarity=%.4f.",
+                len(results),
+                results[0]["similarity"],
+            )
         return results

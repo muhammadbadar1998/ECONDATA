@@ -47,6 +47,7 @@ class DataTransformer:
 
         records = []
         skipped = 0
+        logger.debug("Transforming %d raw series for '%s'...", len(raw_series_list), metric_code)
 
         for series in raw_series_list:
             dims = series.get("dimensions", {})
@@ -136,6 +137,13 @@ class DataTransformer:
 
         if len(final) != len(records):
             logger.info(f"Deduped {len(records) - len(final)} duplicate rows for '{metric_code}'.")
+        logger.debug(
+            "'%s' transform complete: %d rows kept, %d skipped from %d series.",
+            metric_code,
+            len(final),
+            skipped,
+            len(raw_series_list),
+        )
         return final
 
     @staticmethod
@@ -165,4 +173,5 @@ class DataTransformer:
                 "dimension_key": info.get("dimension_key", "country"),
                 "entity_scope": info.get("entity_scope", "country"),
             })
+        logger.debug("Built %d metric registry records.", len(records))
         return records
