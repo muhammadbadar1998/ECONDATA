@@ -104,7 +104,8 @@ class RagAnswerer:
         if not question or not question.strip():
             return []
         docs = self._get_vectorizer().search_documents(question.strip(), k=k or self.k)
-        logger.info("Retrieved %d document(s) for query %r.", len(docs), question.strip()[:80])
+        logger.info("Retrieved %d document(s) for query.", len(docs))
+        logger.debug("Query text: %r", question.strip()[:80])
         return docs
 
     # ------------------------------------------------------------------ #
@@ -161,7 +162,8 @@ class RagAnswerer:
 
         docs = self.retrieve(question)
         if not docs:
-            logger.info("No documents retrieved for %r; answering without the LLM.", question)
+            logger.info("No documents retrieved; answering without the LLM.")
+            logger.debug("Uncovered query: %r", question)
             return NO_CONTEXT_ANSWER, []
 
         messages = self.build_messages(question, docs, history)

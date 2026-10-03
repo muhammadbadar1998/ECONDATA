@@ -16,11 +16,17 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from typing import Optional, TextIO
 
 from src.config import DEFAULT_OUTPUT_DIR, LOGS_DIR_NAME
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# Bound the rolling "latest" file so a daily scheduled run cannot grow it without
+# limit; the date-stamped file rotates naturally by day.
+LOG_MAX_BYTES = 5 * 1024 * 1024
+LOG_BACKUP_COUNT = 5
 
 # Third-party libraries are chatty at INFO/DEBUG; keep only warnings and above.
 _QUIET_LOGGERS = ("urllib3", "requests", "sqlalchemy.engine")
@@ -76,10 +82,21 @@ def setup_logging(
         root.addHandler(stream_handler)
 
     dated_path, latest_path = build_log_paths(output_dir, basename)
-    for path in (dated_path, latest_path):
-        file_handler = logging.FileHandler(path, encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        root.addHandler(file_handler)
+
+    # Per-day file: rotates naturally by date.
+    dated_handler = logging.FileHandler(dated_path, encoding="utf-8")
+    dated_handler.setFormatter(formatter)
+    root.addHandler(dated_handler)
+
+    # Rolling "latest" file: capped in size so it cannot grow without bound.
+    latest_handler = RotatingFileHandler(
+        latest_path,
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
+    latest_handler.setFormatter(formatter)
+    root.addHandler(latest_handler)
 
     for name in _QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)

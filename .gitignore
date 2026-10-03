@@ -37,6 +37,7 @@ config/.env
 *.swo
 
 # Pipeline Output Logs (keep CSV outputs, ignore log files)
-output/pipeline.log
+output/*.log
+output/*.log.*
 output/logs/
 output/scratch/
