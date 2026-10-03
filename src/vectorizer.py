@@ -6,8 +6,9 @@ and persists the result into ``dbe_embeddings`` (a pgvector table).
 Document types (stored in ``doc_type``):
   - ``metric``         : one document per metric (name + synonyms + description).
   - ``entity``         : one document per entity (name + type + parent).
-  - ``entity_metric``  : one document per (entity, metric) coverage summary
-                         ("United States — GDP (Current USD), annual, 156 obs, 1960–2024").
+  - ``entity_metric``  : one document per (entity, metric) coverage + value summary
+                         ("United States / GDP (Current USD), annual, 156 obs, 1960-2024,
+                         Latest: ... , Min: ..., Max: ..., Recent: 2024=..., ...").
 
 ``--vectorize`` embeds only documents whose SHA-256 content hash changed (plus
 orphans). ``--reembed`` recomputes every vector.
@@ -63,6 +64,64 @@ def _coerce_db_value(value: Any) -> Any:
             return int(value)
         return float(value)
     return value
+
+
+# Default number of trailing observations embedded in an entity_metric document.
+DEFAULT_RECENT_POINTS = 5
+
+
+def _format_value(value: Any, base_unit: str = "") -> str:
+    """Render an observation value deterministically for document text.
+
+    ``doc_hash`` is the SHA-256 of ``content``, so this formatting must be
+    stable: same input -> same string, every run. The rules are:
+      - ``None`` -> ``"n/a"``
+      - percentage units -> two decimals plus a ``%`` suffix
+      - large integral magnitudes -> thousands separators, no decimals
+        (e.g. ``27,369,400,000``)
+      - other integrals -> plain integer; everything else -> two decimals
+    """
+    if value is None:
+        return "n/a"
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if num != num or num in (float("inf"), float("-inf")):
+        return "n/a"
+    unit = (base_unit or "").strip()
+    if unit == "%":
+        return f"{num:,.2f}%"
+    if num == int(num):
+        as_int = int(num)
+        return f"{as_int:,}" if abs(as_int) >= 1000 else str(as_int)
+    return f"{num:,.2f}"
+
+
+def _parse_recent_points(raw: Any) -> List[Dict[str, Any]]:
+    """Normalize the ``recent_points`` column into ``[{"year":..,"value":..}]``.
+
+    Accepts the JSON text PostgreSQL returns for ``json_agg`` (psycopg2 does not
+    register a JSON typecaster by default), an already-decoded list, or ``None``.
+    """
+    if raw is None or raw == "":
+        return []
+    data = raw
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    if not isinstance(data, list):
+        return []
+    points: List[Dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        year = _coerce_db_value(item.get("year"))
+        value = _coerce_db_value(item.get("value"))
+        points.append({"year": year, "value": value})
+    return points
 
 
 @dataclass
@@ -152,37 +211,77 @@ class Vectorizer:
     def build_entity_metric_documents(
         coverage_rows: Sequence[Dict[str, Any]],
     ) -> List[Document]:
-        """One document per (entity, metric) coverage summary.
+        """One document per (entity, metric) coverage **and value** summary.
 
         Each ``coverage_rows`` entry must have keys:
         ``entity_code``, ``entity_name``, ``metric_code``, ``metric_name``,
         ``frequency``, ``base_unit``, ``obs_count``, ``min_year``, ``max_year``.
+
+        Optional value-summary keys (from the enriched coverage query) are
+        ``latest_val``/``latest_year``, ``min_val``/``min_val_year``,
+        ``max_val``/``max_val_year`` and ``recent_points``; when present they
+        are appended to the content and mirrored into ``metadata`` so a
+        retrieval-augmented answer can quote a number without further queries.
+
+        The field order is fixed (it is hashed) and values go through
+        :func:`_format_value`, so identical data always yields an identical
+        ``doc_hash`` and re-running ``--vectorize`` is a no-op.
         """
         docs: List[Document] = []
-        for r in coverage_rows:
-            content = (
-                f"{r['entity_name']}\n"
-                f"{r['metric_name']}\n"
-                f"Metric code: {r['metric_code']}\n"
-                f"Frequency: {r['frequency']} Unit: {r['base_unit']}\n"
-                f"Observations: {r['obs_count']}, range {r['min_year']}–{r['max_year']}"
+        for raw in coverage_rows:
+            # Coerce DB numerics (Decimal) up front so both the hashed content
+            # and the JSONB metadata are JSON-serializable and stable.
+            r = {k: _coerce_db_value(v) for k, v in raw.items()}
+            base_unit = r.get("base_unit", "") or ""
+            recent = _parse_recent_points(r.get("recent_points"))
+
+            lines = [
+                f"{r['entity_name']}",
+                f"{r['metric_name']}",
+                f"Metric code: {r['metric_code']}",
+                f"Frequency: {r['frequency']} Unit: {base_unit}",
+                f"Observations: {r['obs_count']}, range {r['min_year']}–{r['max_year']}",
+            ]
+            summary_fields = (
+                ("Latest", "latest_val", "latest_year"),
+                ("Min", "min_val", "min_val_year"),
+                ("Max", "max_val", "max_val_year"),
             )
+            for label, val_key, year_key in summary_fields:
+                if r.get(val_key) is not None:
+                    lines.append(
+                        f"{label}: {_format_value(r[val_key], base_unit)} ({r.get(year_key)})"
+                    )
+            if recent:
+                recent_text = "; ".join(
+                    f"{p.get('year')}={_format_value(p.get('value'), base_unit)}" for p in recent
+                )
+                lines.append(f"Recent: {recent_text}")
+
+            metadata: Dict[str, Any] = {
+                "entity_code": r["entity_code"],
+                "entity_name": r["entity_name"],
+                "metric_code": r["metric_code"],
+                "metric_name": r["metric_name"],
+                "frequency": r["frequency"],
+                "base_unit": base_unit,
+                "obs_count": r["obs_count"],
+                "min_year": r["min_year"],
+                "max_year": r["max_year"],
+                "latest_val": r.get("latest_val"),
+                "latest_year": r.get("latest_year"),
+                "min_val": r.get("min_val"),
+                "min_val_year": r.get("min_val_year"),
+                "max_val": r.get("max_val"),
+                "max_val_year": r.get("max_val_year"),
+                "recent_points": recent,
+            }
             docs.append(
                 Document(
                     doc_key=f"{r['entity_code']}|{r['metric_code']}",
                     doc_type="entity_metric",
-                    content=content.strip(),
-                    metadata={
-                        "entity_code": r["entity_code"],
-                        "entity_name": r["entity_name"],
-                        "metric_code": r["metric_code"],
-                        "metric_name": r["metric_name"],
-                        "frequency": r["frequency"],
-                        "base_unit": r["base_unit"],
-                        "obs_count": r["obs_count"],
-                        "min_year": r["min_year"],
-                        "max_year": r["max_year"],
-                    },
+                    content="\n".join(lines).strip(),
+                    metadata=metadata,
                 )
             )
         return docs
@@ -197,9 +296,86 @@ class Vectorizer:
         catalog = load_pipeline_config()["metrics"]
         return catalog
 
-    def _fetch_entity_metric_coverage(self) -> List[Dict[str, Any]]:
-        """Query the DB for per-(entity, metric) observation coverage."""
+    def _fetch_entity_metric_coverage(self, recent_points: int = DEFAULT_RECENT_POINTS) -> List[Dict[str, Any]]:
+        """Query the DB for per-(entity, metric) coverage **and value summary**.
+
+        For every ``(metric, entity)`` pair that has at least one non-null
+        observation this returns the coverage counters (``obs_count``,
+        ``min_year``, ``max_year``) plus the latest value, the min/max value
+        with their years, and the ``recent_points`` most recent ``year=value``
+        pairs (newest first) as a JSON array.
+
+        ``recent_points`` travels as JSON text so the values never become
+        ``Decimal`` on the way out; the scalar ``numeric`` columns are coerced
+        by :func:`_coerce_db_value` (PostgreSQL returns ``Decimal`` for
+        ``numeric``/``EXTRACT``), which keeps the row JSON-serializable.
+        """
         sql = """
+            WITH base AS (
+                SELECT
+                    o.metric_id,
+                    o.entity_id,
+                    o.start_date,
+                    EXTRACT(YEAR FROM o.start_date)::int AS year,
+                    o.val
+                FROM dbe_observations o
+                JOIN dbe_metrics  m ON m.metric_id  = o.metric_id
+                JOIN dbe_entities e ON e.entity_id = o.entity_id
+                WHERE e.is_active = TRUE
+                  AND o.val IS NOT NULL
+            ),
+            coverage AS (
+                SELECT
+                    metric_id,
+                    entity_id,
+                    COUNT(*)   AS obs_count,
+                    MIN(year)  AS min_year,
+                    MAX(year)  AS max_year
+                FROM base
+                GROUP BY metric_id, entity_id
+            ),
+            latest AS (
+                SELECT DISTINCT ON (metric_id, entity_id)
+                    metric_id, entity_id, year AS latest_year, val AS latest_val
+                FROM base
+                ORDER BY metric_id, entity_id, start_date DESC, val DESC NULLS LAST
+            ),
+            extremes AS (
+                SELECT
+                    metric_id,
+                    entity_id,
+                    (array_agg(val  ORDER BY val ASC,  year DESC))[1] AS min_val,
+                    (array_agg(year ORDER BY val ASC,  year DESC))[1] AS min_val_year,
+                    (array_agg(val  ORDER BY val DESC, year DESC))[1] AS max_val,
+                    (array_agg(year ORDER BY val DESC, year DESC))[1] AS max_val_year
+                FROM base
+                GROUP BY metric_id, entity_id
+            ),
+            ranked AS (
+                SELECT
+                    metric_id,
+                    entity_id,
+                    year,
+                    val,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY metric_id, entity_id
+                        ORDER BY start_date DESC, val DESC NULLS LAST
+                    ) AS rn
+                FROM base
+            ),
+            recent AS (
+                SELECT
+                    metric_id,
+                    entity_id,
+                    COALESCE(
+                        json_agg(
+                            json_build_object('year', year, 'value', val) ORDER BY rn
+                        ) FILTER (WHERE rn <= %s),
+                        '[]'::json
+                    ) AS recent_points
+                FROM ranked
+                GROUP BY metric_id, entity_id
+            )
             SELECT
                 e.entity_code,
                 e.entity_name,
@@ -207,22 +383,29 @@ class Vectorizer:
                 m.metric_name,
                 m.frequency,
                 m.base_unit,
-                COUNT(o.val) AS obs_count,
-                MIN(EXTRACT(YEAR FROM o.start_date)) AS min_year,
-                MAX(EXTRACT(YEAR FROM o.start_date)) AS max_year
-            FROM dbe_observations o
-            JOIN dbe_metrics m        ON m.metric_id = o.metric_id
-            JOIN dbe_entities e       ON e.entity_id = o.entity_id
+                c.obs_count,
+                c.min_year,
+                c.max_year,
+                l.latest_val,
+                l.latest_year,
+                x.min_val,
+                x.min_val_year,
+                x.max_val,
+                x.max_val_year,
+                r.recent_points
+            FROM coverage c
+            JOIN dbe_metrics  m ON m.metric_id  = c.metric_id
+            JOIN dbe_entities e ON e.entity_id = c.entity_id
+            JOIN latest   l ON l.metric_id = c.metric_id AND l.entity_id = c.entity_id
+            JOIN extremes x ON x.metric_id = c.metric_id AND x.entity_id = c.entity_id
+            JOIN recent   r ON r.metric_id = c.metric_id AND r.entity_id = c.entity_id
             WHERE e.is_active = TRUE
-            GROUP BY e.entity_code, e.entity_name,
-                     m.metric_code, m.metric_name, m.frequency, m.base_unit
-            HAVING COUNT(o.val) > 0
             ORDER BY e.entity_code, m.metric_code
         """
         rows: List[Dict[str, Any]] = []
         with self.engine.raw_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(sql)
+                cur.execute(sql, (max(1, int(recent_points)),))
                 cols = [d[0] for d in cur.description]
                 for row in cur.fetchall():
                     row_dict = dict(zip(cols, row, strict=True))
@@ -233,7 +416,7 @@ class Vectorizer:
     # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
-    def build_all_documents(self) -> List[Document]:
+    def build_all_documents(self, recent_points: int = DEFAULT_RECENT_POINTS) -> List[Document]:
         """Build the complete document set: metrics + entities + coverage."""
         from src.entities import ENTITIES
 
@@ -243,13 +426,13 @@ class Vectorizer:
         docs.extend(self.build_entity_documents(ENTITIES))
 
         try:
-            coverage = self._fetch_entity_metric_coverage()
+            coverage = self._fetch_entity_metric_coverage(recent_points=recent_points)
             docs.extend(self.build_entity_metric_documents(coverage))
         except psycopg2.Error as exc:
             logger.warning("Skipping entity_metric documents: %s", exc)
         return docs
 
-    def vectorize_all(self) -> Dict[str, int]:
+    def vectorize_all(self, recent_points: int = DEFAULT_RECENT_POINTS) -> Dict[str, int]:
         """Embed changed/orphan docs and persist into ``dbe_embeddings``.
 
         Returns a stats dict: ``embedded``, ``updated``, ``orphans_removed``,
@@ -261,7 +444,7 @@ class Vectorizer:
                 "Run `ollama serve` and `ollama pull nomic-embed-text`."
             )
 
-        docs = self.build_all_documents()
+        docs = self.build_all_documents(recent_points=recent_points)
         if not docs:
             return {"embedded": 0, "updated": 0, "orphans_removed": 0, "errors": 0}
 

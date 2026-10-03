@@ -72,7 +72,32 @@ python -m src.main --reembed
 Requires [Ollama](https://ollama.com/) serving `nomic-embed-text`
 (`ollama serve` then `ollama pull nomic-embed-text`). See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md).
 
+### 6. Ask the Catalog a Question (optional — vector RAG)
+```bash
+# Interactive REPL over the embedded catalog
+python -m src.chat
+
+# One-shot, non-interactive
+python -m src.chat --question "What is the latest US GDP?"
+
+# Narrower retrieval + print the retrieved doc_keys and similarities
+python -m src.chat --k 5 --show-sources
+```
+The assistant retrieves the top-k documents from `dbe_embeddings` and answers
+**from those documents only**, citing the `doc_key`s it used. It is read-only:
+no text-to-SQL, no generated SQL, no writes.
+
+It needs a **chat** model on top of the embedding model. With the default local
+Ollama endpoint that means `ollama pull qwen2.5:7b-instruct`; any
+OpenAI-compatible server (vLLM, LM Studio, OpenAI, Groq, ...) works by setting
+`LLM_BASE_URL` / `LLM_MODEL` in `config/.env`. No extra Python dependency.
+
+Answerable: latest / highest / lowest / recent trend per country and metric.
+Not answerable yet: arbitrary historical years and cross-entity aggregates —
+read-only tool-calling is the planned extension.
+
 ---
+
 
 ## 🧩 Extending the Pipeline
 

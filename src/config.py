@@ -113,6 +113,56 @@ def get_default_db_connection_string() -> str:
     return _default_db_connection_string()
 
 
+# --------------------------------------------------------------------------- #
+# LLM / RAG runtime (chatbot over the semantic catalog)
+# --------------------------------------------------------------------------- #
+# Defaults target a local Ollama OpenAI-compatible endpoint. Any OpenAI-compatible
+# server (vLLM, LM Studio, OpenAI, Groq, ...) works by overriding the env vars.
+# These are *functions*, not module-level reads, so importing this module stays
+# side-effect free and tests can monkeypatch the environment after import.
+DEFAULT_LLM_BASE_URL = "http://127.0.0.1:11434/v1"
+DEFAULT_LLM_MODEL = "qwen2.5:7b-instruct"
+DEFAULT_LLM_TIMEOUT = 120
+DEFAULT_LLM_TEMPERATURE = 0.2
+DEFAULT_RAG_TOP_K = 8
+DEFAULT_RAG_RECENT_POINTS = 5
+
+
+def get_llm_base_url() -> str:
+    """Base URL of an OpenAI-compatible ``/chat/completions`` endpoint."""
+    return (os.getenv("LLM_BASE_URL") or DEFAULT_LLM_BASE_URL).rstrip("/")
+
+
+def get_llm_api_key() -> str:
+    """API key for the LLM endpoint; empty for local servers that ignore auth."""
+    return (os.getenv("LLM_API_KEY") or "").strip()
+
+
+def get_llm_model() -> str:
+    """Chat model name (must be a chat-capable model, e.g. ``qwen2.5:7b-instruct``)."""
+    return os.getenv("LLM_MODEL") or DEFAULT_LLM_MODEL
+
+
+def get_llm_timeout() -> int:
+    """Per-request timeout in seconds for chat completions."""
+    return int(os.getenv("LLM_TIMEOUT") or DEFAULT_LLM_TIMEOUT)
+
+
+def get_llm_temperature() -> float:
+    """Sampling temperature for chat completions (low = factual)."""
+    return float(os.getenv("LLM_TEMPERATURE") or DEFAULT_LLM_TEMPERATURE)
+
+
+def get_rag_top_k() -> int:
+    """Default number of documents retrieved per question."""
+    return int(os.getenv("RAG_TOP_K") or DEFAULT_RAG_TOP_K)
+
+
+def get_rag_recent_points() -> int:
+    """Number of trailing observations embedded into each entity_metric document."""
+    return int(os.getenv("RAG_RECENT_POINTS") or DEFAULT_RAG_RECENT_POINTS)
+
+
 def load_pipeline_config(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
     """Loads metrics configuration and pipeline settings from JSON file."""
     if not os.path.exists(config_path):
