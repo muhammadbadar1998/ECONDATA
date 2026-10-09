@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EconData.Cli/EconData.Cli.csproj" />
+    <Project Path="src/EconData.Core/EconData.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EconData.Tests/EconData.Tests.csproj" />
+  </Folder>
+</Solution>

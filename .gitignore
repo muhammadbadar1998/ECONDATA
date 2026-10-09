@@ -30,6 +30,13 @@ ENV/
 .env
 config/.env
 
+# .NET / MSBuild
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
 # IDE / Editor
 .vscode/
 .idea/
