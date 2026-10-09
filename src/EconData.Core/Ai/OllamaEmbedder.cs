@@ -11,7 +11,7 @@ namespace EconData.Core.Ai;
 /// 768-dim). Batches texts, retries transient failures with backoff, and
 /// dimension-validates every vector.
 /// </summary>
-public sealed class OllamaEmbedder
+public sealed class OllamaEmbedder : IEmbedder
 {
     public const int DefaultEmbeddingDim = 768;
     private const int MaxAttempts = 3;

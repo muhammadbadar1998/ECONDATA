@@ -20,11 +20,14 @@ public sealed class AppConfig
     public const string DefaultLlmModel = "qwen2.5:7b-instruct";
     public const string DefaultDbNomicsBaseUrl = "https://api.db.nomics.world/v22";
 
+    public static string DefaultSqliteVecExtensionPath { get; } = ComputeSqliteVecExtensionPath();
+
     public string SqlitePath { get; init; } = DefaultSqlitePath;
     public string OutputDir { get; init; } = DefaultOutputDir;
     public string MetricsConfigPath { get; init; } = DefaultMetricsConfigPath;
     public string EntitiesConfigPath { get; init; } = DefaultEntitiesConfigPath;
     public string DbNomicsBaseUrl { get; init; } = DefaultDbNomicsBaseUrl;
+    public string SqliteVecExtensionPath { get; init; } = DefaultSqliteVecExtensionPath;
     public string OllamaHost { get; init; } = DefaultOllamaHost;
     public string OllamaEmbeddingModel { get; init; } = DefaultOllamaEmbeddingModel;
     public int OllamaTimeout { get; init; } = 60;
@@ -48,6 +51,7 @@ public sealed class AppConfig
             MetricsConfigPath = configuration["CONFIG_PATH"] ?? DefaultMetricsConfigPath,
             EntitiesConfigPath = configuration["ECONDATA_ENTITIES_PATH"] ?? DefaultEntitiesConfigPath,
             DbNomicsBaseUrl = (configuration["DBNOMICS_BASE_URL"] ?? DefaultDbNomicsBaseUrl).TrimEnd('/'),
+            SqliteVecExtensionPath = configuration["ECONDATA_SQLITE_VEC_PATH"] ?? DefaultSqliteVecExtensionPath,
             OllamaHost = (configuration["OLLAMA_HOST"] ?? DefaultOllamaHost).TrimEnd('/'),
             OllamaEmbeddingModel = configuration["OLLAMA_EMBEDDING_MODEL"] ?? DefaultOllamaEmbeddingModel,
             OllamaTimeout = GetInt(configuration, "OLLAMA_TIMEOUT", 60),
@@ -78,4 +82,14 @@ public sealed class AppConfig
 
     private static double GetDouble(IConfiguration configuration, string key, double fallback)
         => double.TryParse(configuration[key], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+
+    private static string ComputeSqliteVecExtensionPath()
+    {
+        var (rid, library) = OperatingSystem.IsWindows()
+            ? ("win-x64", "vec0.dll")
+            : OperatingSystem.IsMacOS()
+                ? ("osx-arm64", "vec0.dylib")
+                : ("linux-x64", "vec0.so");
+        return Path.Combine("native", "sqlite-vec", rid, library);
+    }
 }
