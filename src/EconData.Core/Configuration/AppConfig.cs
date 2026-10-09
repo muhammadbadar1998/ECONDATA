@@ -18,11 +18,13 @@ public sealed class AppConfig
     public const string DefaultOllamaEmbeddingModel = "nomic-embed-text";
     public const string DefaultLlmBaseUrl = "http://127.0.0.1:11434/v1";
     public const string DefaultLlmModel = "qwen2.5:7b-instruct";
+    public const string DefaultDbNomicsBaseUrl = "https://api.db.nomics.world/v22";
 
     public string SqlitePath { get; init; } = DefaultSqlitePath;
     public string OutputDir { get; init; } = DefaultOutputDir;
     public string MetricsConfigPath { get; init; } = DefaultMetricsConfigPath;
     public string EntitiesConfigPath { get; init; } = DefaultEntitiesConfigPath;
+    public string DbNomicsBaseUrl { get; init; } = DefaultDbNomicsBaseUrl;
     public string OllamaHost { get; init; } = DefaultOllamaHost;
     public string OllamaEmbeddingModel { get; init; } = DefaultOllamaEmbeddingModel;
     public int OllamaTimeout { get; init; } = 60;
@@ -45,6 +47,7 @@ public sealed class AppConfig
             OutputDir = configuration["OUTPUT_DIR"] ?? DefaultOutputDir,
             MetricsConfigPath = configuration["CONFIG_PATH"] ?? DefaultMetricsConfigPath,
             EntitiesConfigPath = configuration["ECONDATA_ENTITIES_PATH"] ?? DefaultEntitiesConfigPath,
+            DbNomicsBaseUrl = (configuration["DBNOMICS_BASE_URL"] ?? DefaultDbNomicsBaseUrl).TrimEnd('/'),
             OllamaHost = (configuration["OLLAMA_HOST"] ?? DefaultOllamaHost).TrimEnd('/'),
             OllamaEmbeddingModel = configuration["OLLAMA_EMBEDDING_MODEL"] ?? DefaultOllamaEmbeddingModel,
             OllamaTimeout = GetInt(configuration, "OLLAMA_TIMEOUT", 60),
