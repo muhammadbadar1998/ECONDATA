@@ -1,0 +1,1136 @@
+{
+  "entities": [
+    {
+      "entity_code": "WLD",
+      "entity_name": "World",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": null
+    },
+    {
+      "entity_code": "EMU",
+      "entity_name": "Euro area",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "EA19",
+      "entity_name": "Euro area (EA19)",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "EMU"
+    },
+    {
+      "entity_code": "OECD",
+      "entity_name": "OECD members",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "OECDE",
+      "entity_name": "OECD members (excl. Chile/Colombia/Costa Rica)",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "OECD"
+    },
+    {
+      "entity_code": "EUU",
+      "entity_name": "European Union",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "G20",
+      "entity_name": "Group of Twenty",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "G7",
+      "entity_name": "Group of Seven",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "HIC",
+      "entity_name": "High income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "LIC",
+      "entity_name": "Low income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "LMC",
+      "entity_name": "Lower middle income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "UMC",
+      "entity_name": "Upper middle income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "MIC",
+      "entity_name": "Middle income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "LMY",
+      "entity_name": "Low & middle income",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "LDC",
+      "entity_name": "Least developed countries",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "EAS",
+      "entity_name": "East Asia & Pacific",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "EAP",
+      "entity_name": "East Asia & Pacific (excluding high income)",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "ECA",
+      "entity_name": "Europe & Central Asia",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "TEC",
+      "entity_name": "Europe & Central Asia (excluding high income)",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "ECA"
+    },
+    {
+      "entity_code": "LCN",
+      "entity_name": "Latin America & Caribbean",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "TLA",
+      "entity_name": "Latin America & Caribbean (excluding high income)",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "MEA",
+      "entity_name": "Middle East & North Africa",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "TMN",
+      "entity_name": "Middle East & North Africa (excluding high income)",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "NAC",
+      "entity_name": "North America",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "SAS",
+      "entity_name": "South Asia",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "SSA",
+      "entity_name": "Sub-Saharan Africa",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "TSS",
+      "entity_name": "Sub-Saharan Africa (excluding high income)",
+      "entity_type": "region",
+      "is_aggregate": true,
+      "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "ARB",
+      "entity_name": "Arab World",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "USA",
+      "entity_name": "United States",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "NAC"
+    },
+    {
+      "entity_code": "CAN",
+      "entity_name": "Canada",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "NAC"
+    },
+    {
+      "entity_code": "MEX",
+      "entity_name": "Mexico",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "BRA",
+      "entity_name": "Brazil",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "ARG",
+      "entity_name": "Argentina",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "CHL",
+      "entity_name": "Chile",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "COL",
+      "entity_name": "Colombia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "PER",
+      "entity_name": "Peru",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "LCN"
+    },
+    {
+      "entity_code": "GBR",
+      "entity_name": "United Kingdom",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "FRA",
+      "entity_name": "France",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "DEU",
+      "entity_name": "Germany",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "ITA",
+      "entity_name": "Italy",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "ESP",
+      "entity_name": "Spain",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "PRT",
+      "entity_name": "Portugal",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "NLD",
+      "entity_name": "Netherlands",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "BEL",
+      "entity_name": "Belgium",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "IRL",
+      "entity_name": "Ireland",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "AUT",
+      "entity_name": "Austria",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "CHE",
+      "entity_name": "Switzerland",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "SWE",
+      "entity_name": "Sweden",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "NOR",
+      "entity_name": "Norway",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "DNK",
+      "entity_name": "Denmark",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "FIN",
+      "entity_name": "Finland",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "POL",
+      "entity_name": "Poland",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "GRC",
+      "entity_name": "Greece",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "CZE",
+      "entity_name": "Czechia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "HUN",
+      "entity_name": "Hungary",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EUU"
+    },
+    {
+      "entity_code": "RUS",
+      "entity_name": "Russian Federation",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "ECA"
+    },
+    {
+      "entity_code": "UKR",
+      "entity_name": "Ukraine",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "ECA"
+    },
+    {
+      "entity_code": "TUR",
+      "entity_name": "Turkey",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "ECA"
+    },
+    {
+      "entity_code": "CHN",
+      "entity_name": "China",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "JPN",
+      "entity_name": "Japan",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "KOR",
+      "entity_name": "Korea, Rep.",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "IND",
+      "entity_name": "India",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SAS"
+    },
+    {
+      "entity_code": "IDN",
+      "entity_name": "Indonesia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "THA",
+      "entity_name": "Thailand",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "MYS",
+      "entity_name": "Malaysia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "PHL",
+      "entity_name": "Philippines",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "VNM",
+      "entity_name": "Vietnam",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "SGP",
+      "entity_name": "Singapore",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "AUS",
+      "entity_name": "Australia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "NZL",
+      "entity_name": "New Zealand",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "EAS"
+    },
+    {
+      "entity_code": "SAU",
+      "entity_name": "Saudi Arabia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "ARE",
+      "entity_name": "United Arab Emirates",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "IRN",
+      "entity_name": "Iran, Islamic Rep.",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "ISR",
+      "entity_name": "Israel",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "EGY",
+      "entity_name": "Egypt, Arab Rep.",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "MEA"
+    },
+    {
+      "entity_code": "ZAF",
+      "entity_name": "South Africa",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "NGA",
+      "entity_name": "Nigeria",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "KEN",
+      "entity_name": "Kenya",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "ETH",
+      "entity_name": "Ethiopia",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "COD",
+      "entity_name": "Congo, Dem. Rep.",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "SSA"
+    }
+  ],
+  "aliases": [
+    {
+      "provider": "WB",
+      "provider_code": "WLD",
+      "entity_code": "WLD"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "EMU",
+      "entity_code": "EMU"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "OECD",
+      "entity_code": "OECD"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "EUU",
+      "entity_code": "EUU"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "HIC",
+      "entity_code": "HIC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "LIC",
+      "entity_code": "LIC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "LMC",
+      "entity_code": "LMC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "UMC",
+      "entity_code": "UMC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "MIC",
+      "entity_code": "MIC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "LMY",
+      "entity_code": "LMY"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "LDC",
+      "entity_code": "LDC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "EAS",
+      "entity_code": "EAS"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "EAP",
+      "entity_code": "EAP"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "ECA",
+      "entity_code": "ECA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "TEC",
+      "entity_code": "TEC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "LCN",
+      "entity_code": "LCN"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "TLA",
+      "entity_code": "TLA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "MEA",
+      "entity_code": "MEA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "TMN",
+      "entity_code": "TMN"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "NAC",
+      "entity_code": "NAC"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "SAS",
+      "entity_code": "SAS"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "SSA",
+      "entity_code": "SSA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "TSS",
+      "entity_code": "TSS"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "ARB",
+      "entity_code": "ARB"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "USA",
+      "entity_code": "USA"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "CAN",
+      "entity_code": "CAN"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "MEX",
+      "entity_code": "MEX"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "GBR",
+      "entity_code": "GBR"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "FRA",
+      "entity_code": "FRA"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "DEU",
+      "entity_code": "DEU"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "ITA",
+      "entity_code": "ITA"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "ESP",
+      "entity_code": "ESP"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "PRT",
+      "entity_code": "PRT"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "NLD",
+      "entity_code": "NLD"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "BEL",
+      "entity_code": "BEL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "IRL",
+      "entity_code": "IRL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "AUT",
+      "entity_code": "AUT"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "CHE",
+      "entity_code": "CHE"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "SWE",
+      "entity_code": "SWE"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "NOR",
+      "entity_code": "NOR"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "DNK",
+      "entity_code": "DNK"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "FIN",
+      "entity_code": "FIN"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "POL",
+      "entity_code": "POL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "GRC",
+      "entity_code": "GRC"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "CZE",
+      "entity_code": "CZE"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "HUN",
+      "entity_code": "HUN"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "CHL",
+      "entity_code": "CHL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "COL",
+      "entity_code": "COL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "TUR",
+      "entity_code": "TUR"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "JPN",
+      "entity_code": "JPN"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "KOR",
+      "entity_code": "KOR"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "AUS",
+      "entity_code": "AUS"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "NZL",
+      "entity_code": "NZL"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "OAVG",
+      "entity_code": "OECD"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "OECDE",
+      "entity_code": "OECDE"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "OECD",
+      "entity_code": "OECD"
+    },
+    {
+      "provider": "OECD",
+      "provider_code": "WLD",
+      "entity_code": "WLD"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "USA",
+      "entity_code": "USA"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "CAN",
+      "entity_code": "CAN"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "MEX",
+      "entity_code": "MEX"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "BRA",
+      "entity_code": "BRA"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ARG",
+      "entity_code": "ARG"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "GBR",
+      "entity_code": "GBR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "FRA",
+      "entity_code": "FRA"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "DEU",
+      "entity_code": "DEU"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ITA",
+      "entity_code": "ITA"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ESP",
+      "entity_code": "ESP"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "PRT",
+      "entity_code": "PRT"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "NLD",
+      "entity_code": "NLD"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "BEL",
+      "entity_code": "BEL"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "AUT",
+      "entity_code": "AUT"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "CHE",
+      "entity_code": "CHE"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "SWE",
+      "entity_code": "SWE"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "NOR",
+      "entity_code": "NOR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "DNK",
+      "entity_code": "DNK"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "FIN",
+      "entity_code": "FIN"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "POL",
+      "entity_code": "POL"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "GRC",
+      "entity_code": "GRC"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "RUS",
+      "entity_code": "RUS"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "UKR",
+      "entity_code": "UKR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "TUR",
+      "entity_code": "TUR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "CHN",
+      "entity_code": "CHN"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "JPN",
+      "entity_code": "JPN"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "KOR",
+      "entity_code": "KOR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "IND",
+      "entity_code": "IND"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "IDN",
+      "entity_code": "IDN"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "SAU",
+      "entity_code": "SAU"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ARE",
+      "entity_code": "ARE"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ISR",
+      "entity_code": "ISR"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "EGY",
+      "entity_code": "EGY"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "ZAF",
+      "entity_code": "ZAF"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "NGA",
+      "entity_code": "NGA"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "WOO",
+      "entity_code": "WLD"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "WEU",
+      "entity_code": "EUU"
+    },
+    {
+      "provider": "IMF",
+      "provider_code": "WAF",
+      "entity_code": "SSA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "G20",
+      "entity_code": "G20"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "G7",
+      "entity_code": "G7"
+    }
+  ],
+  "memberships": {
+    "OECD": [
+      "USA",
+      "CAN",
+      "MEX",
+      "CHL",
+      "COL",
+      "GBR",
+      "FRA",
+      "DEU",
+      "ITA",
+      "ESP",
+      "PRT",
+      "NLD",
+      "BEL",
+      "IRL",
+      "AUT",
+      "CHE",
+      "SWE",
+      "NOR",
+      "DNK",
+      "FIN",
+      "POL",
+      "GRC",
+      "CZE",
+      "HUN",
+      "TUR",
+      "JPN",
+      "KOR",
+      "AUS",
+      "NZL"
+    ],
+    "EA19": [
+      "AUT",
+      "BEL",
+      "PRT",
+      "ESP",
+      "DEU",
+      "FRA",
+      "IRL",
+      "ITA",
+      "NLD",
+      "GRC",
+      "FIN",
+      "SVN",
+      "SVK",
+      "EST",
+      "LVA",
+      "LTU",
+      "LUX",
+      "MLT",
+      "CYP",
+      "HRV"
+    ],
+    "EUU": [
+      "AUT",
+      "BEL",
+      "PRT",
+      "ESP",
+      "DEU",
+      "FRA",
+      "IRL",
+      "ITA",
+      "NLD",
+      "GRC",
+      "FIN",
+      "SWE",
+      "DNK",
+      "POL",
+      "CZE",
+      "HUN",
+      "GBR",
+      "SVN",
+      "SVK",
+      "EST",
+      "LVA",
+      "LTU",
+      "LUX",
+      "MLT",
+      "CYP",
+      "HRV",
+      "BGR",
+      "ROU"
+    ]
+  }
+}
