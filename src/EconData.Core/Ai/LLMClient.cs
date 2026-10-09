@@ -14,7 +14,7 @@ namespace EconData.Core.Ai;
 /// (<c>POST {base_url}/chat/completions</c>). Works with local Ollama, vLLM,
 /// LM Studio, OpenAI, and Groq; only sends the auth header when a key is set.
 /// </summary>
-public sealed class LLMClient
+public sealed class LLMClient : IChatModel
 {
     // HTTP statuses worth retrying: timeout, conflict, too-early, rate limit, 5xx.
     private static readonly HashSet<int> RetryableStatuses = new() { 408, 409, 425, 429, 500, 502, 503, 504 };
@@ -53,6 +53,9 @@ public sealed class LLMClient
     }
 
     public string ChatUrl => $"{BaseUrl}/chat/completions";
+
+    Task<JsonElement> IChatModel.ChatAsync(IReadOnlyList<ChatTurn> messages, CancellationToken cancellationToken)
+        => ChatAsync(messages, null, cancellationToken);
 
     public IReadOnlyDictionary<string, object?> BuildPayload(IReadOnlyList<ChatTurn> messages, JsonElement? tools = null)
     {

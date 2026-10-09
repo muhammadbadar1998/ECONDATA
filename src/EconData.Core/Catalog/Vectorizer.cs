@@ -13,7 +13,7 @@ namespace EconData.Core.Catalog;
 /// the changed ones via <see cref="IEmbedder"/>, persists them through
 /// <see cref="VectorStore"/>, and serves semantic search.
 /// </summary>
-public sealed class Vectorizer
+public sealed class Vectorizer : IDocumentSearcher
 {
     public const int DefaultRecentPoints = 5;
 
