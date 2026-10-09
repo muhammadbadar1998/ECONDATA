@@ -1,0 +1,94 @@
+using System.Globalization;
+using EconData.Core.Cli;
+using EconData.Core.Configuration;
+using EconData.Core.Data;
+using EconData.Core.Entities;
+using EconData.Core.Extraction;
+using Microsoft.Data.Sqlite;
+using Serilog;
+
+namespace EconData.Tests;
+
+public class PipelineRunnerTests : IDisposable
+{
+    private static readonly string[] DatabaseFileSuffixes = { "", "-wal", "-shm" };
+
+    private readonly string _dbPath;
+    private readonly SqliteConnectionFactory _factory;
+    private readonly ILogger _logger = new LoggerConfiguration().CreateLogger();
+
+    public PipelineRunnerTests()
+    {
+        _dbPath = Path.Combine(Path.GetTempPath(), "econdata-run-" + Guid.NewGuid().ToString("N") + ".db");
+        _factory = new SqliteConnectionFactory(_dbPath);
+    }
+
+    public void Dispose()
+    {
+        (_logger as IDisposable)?.Dispose();
+        SqliteConnection.ClearAllPools();
+        foreach (var suffix in DatabaseFileSuffixes)
+        {
+            var path = _dbPath + suffix;
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public async Task RunsExtractTransformLoadAndAudits()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var source = new FakeSource();
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            source,
+            _logger);
+
+        var summary = await runner.RunAsync(new[] { "gdp_usd" }, loadToDb: true);
+
+        Assert.Equal(3, summary.TotalObservations);
+        Assert.Equal(3, summary.ObservationsUpserted);
+
+        using var connection = _factory.Open();
+        Assert.Equal(3, ScalarLong(connection, "SELECT count(*) FROM dbe_observations"));
+        Assert.Equal(1, ScalarLong(connection, "SELECT count(*) FROM dbe_pipeline_runs"));
+        Assert.Equal(9, ScalarLong(connection, "SELECT count(*) FROM dbe_metrics"));
+
+        using var latest = connection.CreateCommand();
+        latest.CommandText = "SELECT value FROM v_latest_metrics_snapshot WHERE country_code = 'USA' AND metric_code = 'gdp_usd'";
+        Assert.Equal(300.0, Convert.ToDouble(latest.ExecuteScalar(), CultureInfo.InvariantCulture));
+    }
+
+    private static long ScalarLong(SqliteConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private sealed class FakeSource : ISeriesSource
+    {
+        public Task<IReadOnlyList<RawSeries>> FetchMetricSeriesAsync(
+            string metricCode,
+            MetricsCatalog catalog,
+            int limit = 1000,
+            CancellationToken cancellationToken = default)
+        {
+            var series = new RawSeries(
+                new Dictionary<string, string> { ["country"] = "USA" },
+                new[] { "2022", "2023", "2024" },
+                new[] { "100", "200", "300" },
+                "United States");
+            return Task.FromResult<IReadOnlyList<RawSeries>>(new[] { series });
+        }
+    }
+}

@@ -7,7 +7,7 @@ using Serilog.Core;
 namespace EconData.Core.Extraction;
 
 /// <summary>Fetches economic series from the DBnomics REST API with retries and paging.</summary>
-public sealed class DBnomicsExtractor
+public sealed class DBnomicsExtractor : ISeriesSource
 {
     public const string DefaultBaseUrl = "https://api.db.nomics.world/v22";
     private const int MaxRetries = 3;

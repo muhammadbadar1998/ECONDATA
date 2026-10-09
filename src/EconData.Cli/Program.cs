@@ -1,11 +1,228 @@
+using EconData.Core.Ai;
+using EconData.Core.Catalog;
+using EconData.Core.Cli;
+using EconData.Core.Cli.Chat;
+using EconData.Core.Configuration;
+using EconData.Core.Data;
+using EconData.Core.Entities;
+using EconData.Core.Extraction;
+using EconData.Core.Logging;
+using EconData.Core.Rag;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Configuration;
+using Serilog;
+
 namespace EconData.Cli;
 
 internal static class Program
 {
-    private static int Main(string[] args)
+    private const string DefaultSchemaPath = "sql/sqlite/schema.sql";
+
+    private static async Task<int> Main(string[] args)
     {
-        _ = args;
-        Console.WriteLine("econdata (scaffold) — pipeline and chat commands land in M8.");
+        if (args.Length == 0)
+        {
+            PrintUsage();
+            return 1;
+        }
+
+        var command = args[0].ToLowerInvariant();
+        var options = Arguments.Parse(args, 1);
+        var root = CliPaths.Root();
+        var config = BuildConfig(root, options);
+        var basename = command == "chat" ? "chat" : "pipeline";
+        var logger = LoggingSetup.Configure(config, basename: basename, console: true, consoleToStderr: command == "chat");
+
+        try
+        {
+            return command switch
+            {
+                "init-db" => InitDb(config, root, options, logger),
+                "check-db" => CheckDb(config, root, logger),
+                "extract" => await ExtractAsync(config, root, options, logger).ConfigureAwait(false),
+                "vectorize" => await VectorizeAsync(config, root, options, logger).ConfigureAwait(false),
+                "chat" => await ChatAsync(config, root, options, logger).ConfigureAwait(false),
+                _ => UnknownCommand(command),
+            };
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.Error(ex, "Command '{Command}' failed.", command);
+            return 1;
+        }
+    }
+
+    private static int InitDb(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+        var initializer = new SchemaInitializer(factory, logger);
+        var ok = initializer.Initialize(CliPaths.Resolve(root, options.Value("schema", DefaultSchemaPath)!));
+        if (ok)
+        {
+            TryCreateVectorTable(factory, config, root, logger);
+        }
+
+        Console.WriteLine(ok ? "Database schema initialized." : "Database schema initialization failed.");
+        return ok ? 0 : 1;
+    }
+
+    private static int CheckDb(AppConfig config, string root, ILogger logger)
+    {
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+        var initializer = new SchemaInitializer(factory, logger);
+        var ok = initializer.Verify(out var message);
+        Console.WriteLine(ok ? $"Database OK ({message})." : $"Database check failed: {message}");
+        return ok ? 0 : 1;
+    }
+
+    private static async Task<int> ExtractAsync(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+        var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+
+        var metrics = ResolveMetrics(options.Value("metrics", "all")!, catalog);
+        if (metrics.Count == 0)
+        {
+            Console.WriteLine($"No valid metric codes specified. Available: {string.Join(", ", catalog.Codes)}");
+            return 1;
+        }
+
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+        using var http = new HttpClient();
+        var source = new DBnomicsExtractor(http, config.DbNomicsBaseUrl, logger: logger);
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            factory,
+            CliPaths.Resolve(root, options.Value("schema", DefaultSchemaPath)!),
+            source,
+            logger);
+
+        var summary = await runner.RunAsync(metrics, options.Has("db")).ConfigureAwait(false);
+        Console.WriteLine(
+            $"Extraction complete: {summary.TotalObservations} observations, {summary.ObservationsUpserted} upserted in {summary.ExecutionSeconds:F2}s.");
         return 0;
+    }
+
+    private static async Task<int> VectorizeAsync(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+        var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+
+        new SchemaInitializer(factory, logger).Initialize(CliPaths.Resolve(root, options.Value("schema", DefaultSchemaPath)!));
+        var store = new VectorStore(factory, CliPaths.Resolve(root, config.SqliteVecExtensionPath), logger);
+
+        using var http = new HttpClient();
+        var embedder = new OllamaEmbedder(config, http, logger);
+        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, options.Has("reembed"), logger);
+        var stats = await vectorizer.VectorizeAllAsync(options.IntValue("recent-points", Vectorizer.DefaultRecentPoints)).ConfigureAwait(false);
+
+        Console.WriteLine(
+            $"Vectorization complete: embedded={stats["embedded"]} updated={stats["updated"]} " +
+            $"orphans_removed={stats["orphans_removed"]} errors={stats["errors"]}.");
+        return stats["errors"] > 0 ? 1 : 0;
+    }
+
+    private static async Task<int> ChatAsync(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+        var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+        var store = new VectorStore(factory, CliPaths.Resolve(root, config.SqliteVecExtensionPath), logger);
+
+        using var http = new HttpClient();
+        var embedder = new OllamaEmbedder(config, http, logger);
+        var llm = new LLMClient(config, http, logger);
+        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, forceReembed: false, logger);
+        var k = options.IntValue("k", config.RagTopK);
+
+        IRagAnswerer AnswererFactory(string systemPrompt) => new RagAnswerer(vectorizer, llm, k, systemPrompt, logger);
+
+        var chatOptions = new ChatOptions(
+            K: k,
+            ShowSources: options.Has("show-sources"),
+            SystemPromptPath: options.Value("system", string.Empty)!,
+            Question: options.Value("question", string.Empty)!);
+
+        return await ChatCommand.RunAsync(
+            chatOptions,
+            AnswererFactory,
+            (_, cancellationToken) => ChatCommand.PreflightAsync(embedder, llm, cancellationToken),
+            Console.In,
+            Console.Out,
+            Console.Error).ConfigureAwait(false);
+    }
+
+    private static void TryCreateVectorTable(SqliteConnectionFactory factory, AppConfig config, string root, ILogger logger)
+    {
+        try
+        {
+            new VectorStore(factory, CliPaths.Resolve(root, config.SqliteVecExtensionPath), logger).EnsureVectorTable();
+        }
+        catch (Exception ex) when (ex is SqliteException or DllNotFoundException or BadImageFormatException)
+        {
+            logger.Warning("Could not create the sqlite-vec table ({Message}). Run `vectorize` once the extension is available.", ex.Message);
+        }
+    }
+
+    private static List<string> ResolveMetrics(string metricsOption, MetricsCatalog catalog)
+    {
+        if (string.Equals(metricsOption, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return catalog.Codes.ToList();
+        }
+
+        return metricsOption
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(code => catalog.Get(code) is not null)
+            .ToList();
+    }
+
+    private static AppConfig BuildConfig(string root, Arguments options)
+    {
+        var overrides = new Dictionary<string, string?>();
+        SetOverride(overrides, "CONFIG_PATH", root, options.Value("config"));
+        SetOverride(overrides, "OUTPUT_DIR", root, options.Value("output-dir"));
+        SetOverride(overrides, "ECONDATA_SQLITE_PATH", root, options.Value("db-path"));
+        SetOverride(overrides, "ECONDATA_ENTITIES_PATH", root, options.Value("entities"));
+        SetOverride(overrides, "ECONDATA_SQLITE_VEC_PATH", root, options.Value("vec"));
+
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(root)
+            .AddJsonFile(Path.Combine("config", "appsettings.json"), optional: true, reloadOnChange: false)
+            .AddEnvironmentVariables()
+            .AddInMemoryCollection(overrides)
+            .Build();
+        return AppConfig.FromConfiguration(configuration);
+    }
+
+    private static void SetOverride(IDictionary<string, string?> overrides, string key, string root, string? value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            overrides[key] = CliPaths.Resolve(root, value);
+        }
+    }
+
+    private static int UnknownCommand(string command)
+    {
+        Console.Error.WriteLine($"Unknown command: {command}");
+        PrintUsage();
+        return 1;
+    }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine("econdata <command> [options]");
+        Console.WriteLine();
+        Console.WriteLine("  init-db                          Create the SQLite dbe_* schema and exit");
+        Console.WriteLine("  check-db                         Verify the SQLite schema integrity and exit");
+        Console.WriteLine("  extract [--metrics all|a,b] [--db]   Run the extract/transform/load pipeline");
+        Console.WriteLine("  vectorize [--reembed] [--recent-points N]   Build/refresh the semantic catalog");
+        Console.WriteLine("  chat [--question Q] [--k N] [--show-sources] [--system FILE]   Ask the catalog");
+        Console.WriteLine();
+        Console.WriteLine("Common options: --config PATH --db-path PATH --entities PATH --vec PATH --output-dir DIR --schema PATH");
+        Console.WriteLine($"Defaults: config={AppConfig.DefaultMetricsConfigPath}, db={AppConfig.DefaultSqlitePath}, output={AppConfig.DefaultOutputDir}");
     }
 }
