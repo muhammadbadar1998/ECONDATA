@@ -1,0 +1,63 @@
+@page "/metrics"
+@inject HttpClient Http
+
+<PageTitle>Metrics</PageTitle>
+
+<h1>Metrics Coverage</h1>
+
+@if (_coverage is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Metric Code</th>
+                    <th>Metric Name</th>
+                    <th>Category</th>
+                    <th>Frequency</th>
+                    <th>Base Unit</th>
+                    <th>Entities</th>
+                    <th>Observations</th>
+                    <th>Year Range</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _coverage)
+                {
+                    <tr>
+                        <td><code>@row.MetricCode</code></td>
+                        <td>@row.MetricName</td>
+                        <td>@row.Category</td>
+                        <td>@row.Frequency</td>
+                        <td>@row.BaseUnit</td>
+                        <td>@row.EntityCount</td>
+                        <td>@row.ObservationCount</td>
+                        <td>
+                            @if (row.MinPeriod != null && row.MaxPeriod != null)
+                            {
+                                @($"{row.MinPeriod} - {row.MaxPeriod}")
+                            }
+                            else
+                            {
+                                <em>No data</em>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<MetricCoverage>? _coverage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _coverage = await Http.GetFromJsonAsync<IReadOnlyList<MetricCoverage>>("api/coverage");
+    }
+}

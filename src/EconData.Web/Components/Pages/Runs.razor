@@ -1,0 +1,67 @@
+@page "/runs"
+@inject HttpClient Http
+
+<PageTitle>Pipeline Runs</PageTitle>
+
+<h1>Pipeline Runs</h1>
+
+@if (_runs is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Run ID</th>
+                    <th>Timestamp</th>
+                    <th>Status</th>
+                    <th>Execution (s)</th>
+                    <th>Metrics Extracted</th>
+                    <th>Observations Upserted</th>
+                    <th>Observations Skipped</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var run in _runs)
+                {
+                    <tr>
+                        <td>@run.RunId</td>
+                        <td>@run.RunTimestamp</td>
+                        <td>
+                            <span class="badge @GetStatusBadge(run.Status)">@run.Status</span>
+                        </td>
+                        <td>@run.ExecutionSeconds.ToString("F2")</td>
+                        <td>@run.MetricsExtracted</td>
+                        <td>@run.ObservationsUpserted</td>
+                        <td>@run.ObservationsSkipped</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted">Showing @_runs.Count runs (max @_limit)</p>
+}
+
+@code {
+    private int _limit = 50;
+    private IReadOnlyList<RunSummary>? _runs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _runs = await Http.GetFromJsonAsync<IReadOnlyList<RunSummary>>($"api/runs?limit={_limit}");
+    }
+
+    private static string GetStatusBadge(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "SUCCESS" => "bg-success",
+            "FAILED" => "bg-danger",
+            "RUNNING" => "bg-warning text-dark",
+            _ => "bg-secondary"
+        };
+    }
+}

@@ -8,6 +8,7 @@ using EconData.Core.Logging;
 using EconData.Web.Components;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -54,6 +55,11 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapGet("/api/overview", (AnalyticsService analytics) => Results.Ok(analytics.GetOverview()));
+app.MapGet("/api/coverage", (AnalyticsService analytics) => Results.Ok(analytics.GetMetricCoverage()));
+app.MapGet("/api/series", (AnalyticsService analytics, string entity, string metric) => Results.Ok(analytics.GetSeries(entity, metric)));
+app.MapGet("/api/snapshot", (AnalyticsService analytics, string? entity, string? metric, string? category, int limit = 200) => Results.Ok(analytics.GetLatestSnapshot(entity, metric, category, limit)));
+app.MapGet("/api/entities", (AnalyticsService analytics, string? q, string? type, int limit = 500) => Results.Ok(analytics.GetEntities(q, type, limit)));
+app.MapGet("/api/runs", (AnalyticsService analytics, int limit = 50) => Results.Ok(analytics.GetRuns(limit)));
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

@@ -1,0 +1,77 @@
+@page "/entities"
+@inject HttpClient Http
+
+<PageTitle>Entities</PageTitle>
+
+<h1>Entities</h1>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input type="text" class="form-control" placeholder="Search by code or name" @bind="_searchQuery" @bind:event="oninput" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" @bind="_entityType">
+            <option value="">All Types</option>
+            <option value="country">Country</option>
+            <option value="aggregate">Aggregate</option>
+            <option value="region">Region</option>
+            <option value="custom">Custom</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary" @onclick="LoadEntities">Search</button>
+    </div>
+</div>
+
+@if (_entities is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Aggregate</th>
+                    <th>Aliases</th>
+                    <th>Observations</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _entities)
+                {
+                    <tr>
+                        <td><code>@row.EntityCode</code></td>
+                        <td>@row.EntityName</td>
+                        <td>@row.EntityType</td>
+                        <td>@(row.IsAggregate == 1 ? "Yes" : "No")</td>
+                        <td>@row.AliasCount</td>
+                        <td>@row.ObservationCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="text-muted">Showing @_entities.Count entities (max @_limit)</p>
+}
+
+@code {
+    private string _searchQuery = "";
+    private string _entityType = "";
+    private int _limit = 500;
+    private IReadOnlyList<EntitySummary>? _entities;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntities();
+    }
+
+    private async Task LoadEntities()
+    {
+        _entities = await Http.GetFromJsonAsync<IReadOnlyList<EntitySummary>>($"api/entities?q={Uri.EscapeDataString(_searchQuery)}&type={Uri.EscapeDataString(_entityType)}&limit={_limit}");
+    }
+}

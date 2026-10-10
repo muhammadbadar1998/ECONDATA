@@ -1,0 +1,147 @@
+@page "/data"
+@inject HttpClient Http
+
+<PageTitle>Data</PageTitle>
+
+<h1>Data Explorer</h1>
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <label class="form-label">Entity</label>
+        <select class="form-select" @bind="_selectedEntity">
+            <option value="">-- Select Entity --</option>
+            @foreach (var e in _entities ?? Enumerable.Empty<EntitySummary>())
+            {
+                <option value="@e.EntityCode">@e.EntityCode - @e.EntityName</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Metric</label>
+        <select class="form-select" @bind="_selectedMetric">
+            <option value="">-- Select Metric --</option>
+            @foreach (var m in _coverage ?? Enumerable.Empty<MetricCoverage>())
+            {
+                <option value="@m.MetricCode">@m.MetricCode - @m.MetricName</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" @onclick="LoadData" disabled="@(_selectedEntity == null || _selectedMetric == null)">Load</button>
+    </div>
+</div>
+
+@if (_selectedEntity != null && _selectedMetric != null)
+{
+    <h2 class="mt-4">Time Series: @_selectedEntity / @_selectedMetric</h2>
+
+    @if (_series is null)
+    {
+        <p><em>Loading series...</em></p>
+    }
+    else if (_series.Count == 0)
+    {
+        <p class="text-muted">No observations found for this entity/metric combination.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                        <th>Period String</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var point in _series)
+                    {
+                        <tr>
+                            <td>@point.Period</td>
+                            <td>@point.Value</td>
+                            <td>@(point.Unit ?? "")</td>
+                            <td>@(point.PeriodStr ?? "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <h2 class="mt-4">Latest Snapshot</h2>
+
+    @if (_snapshot is null)
+    {
+        <p><em>Loading snapshot...</em></p>
+    }
+    else if (_snapshot.Count == 0)
+    {
+        <p class="text-muted">No latest snapshot found.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Country Code</th>
+                        <th>Country Name</th>
+                        <th>Metric Code</th>
+                        <th>Metric Name</th>
+                        <th>Category</th>
+                        <th>Frequency</th>
+                        <th>Base Unit</th>
+                        <th>Value</th>
+                        <th>Period</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _snapshot)
+                    {
+                        <tr>
+                            <td>@row.CountryCode</td>
+                            <td>@row.CountryName</td>
+                            <td>@row.MetricCode</td>
+                            <td>@row.MetricName</td>
+                            <td>@row.Category</td>
+                            <td>@row.Frequency</td>
+                            <td>@row.BaseUnit</td>
+                            <td>@row.Value</td>
+                            <td>@row.Period</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<EntitySummary>? _entities;
+    private IReadOnlyList<MetricCoverage>? _coverage;
+    private string? _selectedEntity;
+    private string? _selectedMetric;
+    private IReadOnlyList<SeriesPoint>? _series;
+    private IReadOnlyList<LatestSnapshotRow>? _snapshot;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownData();
+    }
+
+    private async Task LoadDropdownData()
+    {
+        _entities = await Http.GetFromJsonAsync<IReadOnlyList<EntitySummary>>("api/entities?limit=1000");
+        _coverage = await Http.GetFromJsonAsync<IReadOnlyList<MetricCoverage>>("api/coverage");
+    }
+
+    private async Task LoadData()
+    {
+        if (_selectedEntity == null || _selectedMetric == null) return;
+
+        _series = await Http.GetFromJsonAsync<IReadOnlyList<SeriesPoint>>($"api/series?entity={Uri.EscapeDataString(_selectedEntity)}&metric={Uri.EscapeDataString(_selectedMetric)}");
+        _snapshot = await Http.GetFromJsonAsync<IReadOnlyList<LatestSnapshotRow>>($"api/snapshot?entity={Uri.EscapeDataString(_selectedEntity)}&metric={Uri.EscapeDataString(_selectedMetric)}&limit=10");
+    }
+}
