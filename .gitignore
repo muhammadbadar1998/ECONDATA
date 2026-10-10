@@ -51,3 +51,6 @@ output/*.db-wal
 output/*.db-shm
 output/logs/
 output/scratch/
+
+# Dashboard layout (W4)
+output/dashboards.json

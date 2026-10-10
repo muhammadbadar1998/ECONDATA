@@ -16,6 +16,12 @@ public sealed class SqliteConnectionFactory
         "synchronous = NORMAL",
     };
 
+    private static readonly string[] ReadOnlyPragmas =
+    {
+        "busy_timeout = 5000",
+        "query_only = ON",
+    };
+
     private readonly string _connectionString;
 
     public string DatabasePath { get; }
@@ -46,6 +52,24 @@ public sealed class SqliteConnectionFactory
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
         foreach (var pragma in Pragmas)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA {pragma};";
+            command.ExecuteNonQuery();
+        }
+
+        return connection;
+    }
+
+    /// <summary>
+    /// Opens a connection guarded by <c>PRAGMA query_only</c> for read-only
+    /// analytics queries. WAL readers proceed while a writer is active.
+    /// </summary>
+    public SqliteConnection OpenReadOnly()
+    {
+        var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        foreach (var pragma in ReadOnlyPragmas)
         {
             using var command = connection.CreateCommand();
             command.CommandText = $"PRAGMA {pragma};";

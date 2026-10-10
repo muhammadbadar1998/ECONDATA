@@ -1,0 +1,66 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Overview</PageTitle>
+
+<h1>EconData Overview</h1>
+
+@if (_stats is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        @foreach (var tile in _tiles)
+        {
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@tile.Label</h5>
+                        <p class="display-6">@tile.Value</p>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <h2 class="mt-4">Latest pipeline run</h2>
+    @if (_stats.LastRunStatus is null)
+    {
+        <p>No pipeline runs recorded yet.</p>
+    }
+    else
+    {
+        <p>
+            <span class="badge bg-success">@_stats.LastRunStatus</span>
+            <span>@_stats.LastRunTimestamp</span>
+        </p>
+    }
+}
+
+@code {
+    private OverviewStats? _stats;
+    private List<Tile> _tiles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stats = await Http.GetFromJsonAsync<OverviewStats>("api/overview");
+
+        if (_stats is not null)
+        {
+            _tiles = new List<Tile>
+            {
+                new Tile("Entities", _stats.EntityCount),
+                new Tile("Aliases", _stats.AliasCount),
+                new Tile("Metrics", _stats.MetricCount),
+                new Tile("Sources", _stats.SourceCount),
+                new Tile("Observations", _stats.ObservationCount),
+                new Tile("Embeddings", _stats.EmbeddingCount),
+                new Tile("Memberships", _stats.MembershipCount),
+            };
+        }
+    }
+
+    private sealed record Tile(string Label, object Value);
+}
