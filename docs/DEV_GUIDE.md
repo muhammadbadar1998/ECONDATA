@@ -1,166 +1,163 @@
 # Developer Guide
 
-## Project posture (after debloat)
-`ECONDATA` is a **Python ETL only**. The pipeline extracts normalized macro-economic
-series from the DBnomics REST API, transforms them (entity resolution, typed dates,
-unit normalization, dedupe), and performs idempotent bulk UPSERTs into
-**Supabase PostgreSQL** (`dbe_*` schema). The Streamlit dashboard, the Airflow DAG,
-and all Docker files have been removed; scheduling is manual (e.g. cron).
+## Project posture
+
+`ECONDATA` is a **C# / .NET 10** ETL + vector-RAG service. The pipeline extracts
+normalized macro-economic series from the DBnomics REST API, transforms them
+(entity resolution, typed dates, unit normalization, dedupe), and performs
+idempotent bulk UPSERTs into a **local SQLite** database (`dbe_*` schema). An
+optional semantic layer embeds metric/entity/series summaries and answers
+questions **from those documents only** (read-only).
+
+The former Python implementation and the Supabase/PostgreSQL backend have been
+removed. The SQLite database is a single file; there are no server credentials.
 
 ## Prerequisites
-- **Python 3.10+**
-- **PostgreSQL** with the `vector` extension (Supabase has it; self-hosted Postgres
-  ≥11 needs `CREATE EXTENSION vector;`).
-  - **Ollama** (for the semantic catalog layer): install the service **and** the
-    Python SDK (the SDK is in `requirements.txt` as `ollama>=0.3.0`):
-    ```bash
-    ollama serve            # in a terminal / systemd service / Windows service
-    ollama pull nomic-embed-text   # 768-dim embeddings
-    ```
-    The pipeline also uses raw `requests` calls as a fallback, but the SDK is
-    available for ad-hoc use and health checks.
-  - A **chat model** on the LLM endpoint for the chatbot
-    (`python -m src.chat`): `ollama pull qwen2.5:7b-instruct`, or point
-    `LLM_BASE_URL`/`LLM_MODEL` at any OpenAI-compatible server.
+
+- **.NET SDK 10** (`global.json` pins `10.0.4xx`).
+- **Ollama** (only for `vectorize` + `chat`):
+  ```bash
+  ollama serve
+  ollama pull nomic-embed-text        # 768-dim embeddings
+  ollama pull qwen2.5:7b-instruct     # chat model (any chat-capable model works)
+  ```
 
 ## Setup
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate     # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-cp config/.env.example config/.env   # then edit config/.env with DB creds
+dotnet build EconData.slnx
+dotnet run --project src/EconData.Cli -- init-db
 ```
+
+Paths default to the repository root (resolved by walking up to `EconData.slnx`).
+Override with `--config`, `--db-path`, `--entities`, `--vec`, `--output-dir`.
 
 ## Common tasks
+
 ```bash
-# Check Supabase connectivity (no schema changes)
-python -m src.main --check-db
+# Verify the SQLite schema (integrity + dbe_* table count)
+dotnet run --project src/EconData.Cli -- check-db
 
-# Initialize the dbe_* schema (idempotent: CREATE IF NOT EXISTS / CREATE OR REPLACE)
-python -m src.main --init-db
+# Full ETL for all metrics into SQLite
+dotnet run --project src/EconData.Cli -- extract --metrics all --db
 
-# Full ETL run for all metrics into Supabase
-python -m src.main --metrics all --db
+# A subset of metrics
+dotnet run --project src/EconData.Cli -- extract --metrics gdp_usd,population --db
 
-# Embed catalog + series summaries into dbe_embeddings (cosine HNSW index)
-python -m src.main --vectorize
+# Embed catalog + series summaries into dbe_embeddings (sqlite-vec cosine)
+dotnet run --project src/EconData.Cli -- vectorize
 
-# Force re-embedding every document (recompute changed + orphans)
-python -m src.main --reembed
+# Force re-embedding every document
+dotnet run --project src/EconData.Cli -- vectorize --reembed
 
-# Ask the catalog a question (vector RAG over dbe_embeddings)
-python -m src.chat
-python -m src.chat --question "What is the latest US GDP?"
-python -m src.chat --k 5 --show-sources
+# Ask the catalog a question
+dotnet run --project src/EconData.Cli -- chat --question "What is the latest US GDP?"
+dotnet run --project src/EconData.Cli -- chat --k 5 --show-sources
 
-# Run tests
-pytest                 # unit tests; opt-in integration tests via ECONDATA_TEST_DB_CONN
-
-# Lint
-ruff check src/
+# Tests + formatting
+dotnet test EconData.slnx
+dotnet format EconData.slnx --verify-no-changes
 ```
 
-## Chatbot (vector RAG)
+The integration tests are hermetic: they run against a temporary SQLite file,
+including a real `sqlite-vec` kNN round-trip. `LiveChatIntegrationTests` (if run)
+additionally needs Ollama; the offline unit tests use a deterministic fake embedder.
 
-A read-only CLI assistant answers questions about the catalog: it embeds the
-question, retrieves the top-k documents from `dbe_embeddings`, and asks an
-OpenAI-compatible chat model to answer **from those documents only**, citing the
-`doc_key`s it used. There is no text-to-SQL and no write path.
+## Configuration
 
-### Prerequisites
-1. The database is populated and vectorized:
-   ```bash
-   python -m src.main --metrics all --db
-   python -m src.main --vectorize
-   ```
-2. A **chat-capable** model is available on the LLM endpoint. For a local
-   Ollama server (the default), embeddings and chat are separate models:
-   ```bash
-   ollama serve
-   ollama pull nomic-embed-text        # embeddings (required)
-   ollama pull qwen2.5:7b-instruct    # chat model (required for the chatbot)
-   ```
-   Any OpenAI-compatible server works by pointing `LLM_BASE_URL` at it (vLLM,
-   LM Studio, OpenAI, Groq, ...). No new Python dependency is used — the client
-   is plain `requests`.
-
-### Environment (`config/.env`)
+Settings come from `config/appsettings.json`, then environment variables (which
+win), with compiled defaults. None are secrets — the store is a local file.
 
 | Variable | Default | Meaning |
 | :--- | :--- | :--- |
+| `ECONDATA_SQLITE_PATH` | `./output/econdata.db` | SQLite database file |
+| `OUTPUT_DIR` | `./output` | Log directory |
+| `ECONDATA_SQLITE_VEC_PATH` | `./native/sqlite-vec/<rid>/vec0.{dll,so,dylib}` | sqlite-vec extension |
+| `CONFIG_PATH` | `./config/metrics.json` | Metric catalog |
+| `ECONDATA_ENTITIES_PATH` | `./config/entities.json` | Entity/alias/membership seed |
+| `DBNOMICS_BASE_URL` | `https://api.db.nomics.world/v22` | Source API |
 | `OLLAMA_HOST` | `http://127.0.0.1:11434` | Embedding service base URL |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | Embedding model (768-dim) |
 | `OLLAMA_TIMEOUT` | `60` | Per-request timeout for *embedding* calls |
+| `OLLAMA_EMBEDDING_BATCH_SIZE` | `32` | Texts per embedding request |
 | `LLM_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI-compatible base URL |
-| `LLM_API_KEY` | *(empty)* | Bearer token; the header is omitted when empty |
+| `LLM_API_KEY` | *(empty)* | Bearer token; header omitted when empty |
 | `LLM_MODEL` | `qwen2.5:7b-instruct` | Chat model (must be chat-capable) |
 | `LLM_TIMEOUT` | `120` | Timeout for one *chat completion* |
 | `LLM_TEMPERATURE` | `0.2` | Lower = more factual |
 | `RAG_TOP_K` | `8` | Documents retrieved per question |
 | `RAG_RECENT_POINTS` | `5` | Trailing observations per `entity_metric` document |
+| `LOG_LEVEL` | `INFO` | Serilog minimum level |
 
 `LLM_TIMEOUT` is deliberately separate from `OLLAMA_TIMEOUT`: chat completions
 generate tokens and are far slower than embedding calls.
 
-`LLM_API_KEY` lives only in `config/.env` (gitignored) and is never logged.
+## Logging
+
+Serilog writes to `output/logs/pipeline_<date>.log` and a size-bounded rolling
+`output/pipeline.log` (5 MB × 5); chat mirrors this to `chat_<date>.log` /
+`chat.log` with the console on **stderr** (so piped answers stay on stdout).
+
+## Chatbot (vector RAG)
+
+A read-only CLI assistant: it embeds the question, retrieves the top-k documents
+from `dbe_embeddings`, and asks an OpenAI-compatible chat model to answer **from
+those documents only**, citing the `doc_key`s used. No text-to-SQL, no writes.
+
+### Prerequisites
+1. The database is populated and vectorized:
+   ```bash
+   dotnet run --project src/EconData.Cli -- extract --metrics all --db
+   dotnet run --project src/EconData.Cli -- vectorize
+   ```
+2. A **chat-capable** model is available on the LLM endpoint. For local Ollama,
+   embeddings and chat are separate models (`nomic-embed-text` + a chat model).
 
 ### Commands
 ```bash
-python -m src.chat                                   # interactive REPL
-python -m src.chat --question "latest US GDP"        # one-shot
-python -m src.chat --k 5 --show-sources              # fewer docs, print sources
-python -m src.chat --system prompts/rag.txt          # system-prompt override
+dotnet run --project src/EconData.Cli -- chat                                   # REPL
+dotnet run --project src/EconData.Cli -- chat --question "latest US GDP"        # one-shot
+dotnet run --project src/EconData.Cli -- chat --k 5 --show-sources
+dotnet run --project src/EconData.Cli -- chat --system prompts/rag.txt
 ```
 REPL commands: `help`, `sources` (re-print the last answer's sources), `reset`
-(clear the in-memory transcript), `exit`/`quit` (or Ctrl-D). History is capped
-at the last 10 turns and is never persisted.
+(clear the in-memory transcript), `exit`/`quit` (or Ctrl-D). History is capped at
+the last 10 turns and is never persisted.
 
 ### What the assistant can and cannot answer
 Retrieval is the only source of truth, so each `entity_metric` document carries
-coverage (observation count, year range), the **latest** value, the **min** and
-**max** with their years, and the **N most recent** `year=value` points. That
-answers "latest / highest / lowest / recent trend" questions. It does **not**
-answer arbitrary historical years outside those recent points, nor cross-entity
-aggregates, rankings, or comparisons — the system prompt instructs the model to
-say so rather than guess. Adding read-only tool-calling (`get_series`,
-`list_entities`) is the planned way to close that gap; `LLMClient.chat` already
-accepts `tools` and returns `tool_calls`.
+coverage (count, year range), the **latest** value, the **min**/**max** with their
+years, and the **N most recent** `year=value` points. That answers "latest /
+highest / lowest / recent trend" questions. It does **not** answer arbitrary
+historical years outside those recent points, nor cross-entity aggregates,
+rankings, or comparisons — the system prompt instructs the model to say so rather
+than guess.
 
 ### Troubleshooting
 | Symptom | Fix |
 | :--- | :--- |
 | Non-zero exit at startup | The embedding service or `LLM_BASE_URL` is unreachable; the message names which. |
 | `[error] ... rejected the credentials (HTTP 401)` | Set `LLM_API_KEY`, or clear it for a local server. |
-| `[error] ... no /chat/completions route (HTTP 404)` | `LLM_BASE_URL` must point at the OpenAI-compatible root (usually `.../v1`). |
+| `[error] ... no /chat/completions route (HTTP 404)` | `LLM_BASE_URL` must point at the OpenAI-compatible root (usually `.../v1`); a missing Ollama model also returns 404. |
 | `no choices ... Is 'x' a chat-capable model?` | `ollama pull <model>` or set `LLM_MODEL` to a chat model. |
-| "I don't have any catalog data that covers that" | Nothing relevant was retrieved; the LLM was not called. Run `--vectorize` if the table is empty. |
-
-## Connection-string resolution
-`src/config.py::get_supabase_connection_string()` resolves the connection lazily:
-1. `ECONDATA_DATABASE_URL` (preferred) → `postgresql+psycopg2://` scheme coerced.
-2. Fallback: `DATABASE_URL` / `SHAREDPOOLER` (with a warning for the ambient name).
-3. Fallback: discrete `SUPABASE_HOST`/`SUPABASE_USER`/`SUPABASE_PASSWORD`/
-   `SUPABASE_DB`/`SUPABASE_PORT`.
-
-Importing `src/config` **never** raises — even without credentials — because the
-string is materialized on first call, not at import time.
+| "I don't have any catalog data that covers that" | Nothing relevant was retrieved; the LLM was not called. Run `vectorize` if the table is empty. |
 
 ## Vector catalog design
+
 - Documents live in `dbe_embeddings`; each row is identified by
   `(doc_key, doc_type)` and carries a `doc_hash` (SHA-256 of the canonical content).
-- `--vectorize` embeds only documents whose hash changed plus any orphans
-  (rows in the table not present in the freshly-built set).
-- `--reembed` recomputes every vector.
-- `Vectorizer.search_documents(query, k=...)` runs a cosine nearest-neighbour
-  query against the HNSW index.
-- `entity_metric` documents embed a **value summary** (latest / min / max with
-  their years, plus the `RAG_RECENT_POINTS` most recent `year=value` pairs) so a
-  RAG answer can quote a number without a second query. Because `doc_hash` is
-  the hash of the content, changing the summary changes the hash: the first run
-  after changing `RAG_RECENT_POINTS` re-embeds the 1,803 `entity_metric` docs
-  only, and per-`doc_type` row counts stay the same. Re-running `--vectorize`
-  immediately afterwards reports `embedded=0`, which is the idempotency check.
+- `vectorize` embeds only documents whose hash changed plus any orphans (rows in
+  the table not present in the freshly-built set). `--reembed` recomputes every vector.
+- Vectors are stored in a sqlite-vec `vec0` table (`float[768]`, cosine); search is
+  `similarity = 1 - distance`.
+- `entity_metric` documents embed a **value summary** so a RAG answer can quote a
+  number without a second query. Because `doc_hash` hashes the content, changing
+  the summary changes the hash; re-running `vectorize` immediately after reports
+  `embedded=0` (the idempotency check).
 
-## Security
-- `config/.env` is gitignored; never commit real credentials.
-- Restrict the Supabase `anon` role away from `dbe_*` and use an IP allowlist.
+## sqlite-vec
+
+The loadable extension is vendored under `native/sqlite-vec/<rid>/` (pinned to
+v0.1.9). `VectorStore` loads it per connection and manages the `dbe_embeddings_vec`
+`vec0` table alongside `dbe_embeddings`. To support another platform, add its RID
+directory from the matching sqlite-vec release asset (see `native/sqlite-vec/README.md`).

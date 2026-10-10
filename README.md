@@ -1,113 +1,93 @@
-# DBnomics Global Economic Data Extraction & Supabase PostgreSQL Pipeline
+# EconData — .NET Economic Data Pipeline (SQLite)
 
-A Python pipeline to extract high-level macroeconomic indicators across all available countries from [DBnomics](https://db.nomics.world/), normalize them into a **typed, extensible schema**, and perform idempotent bulk UPSERT loading into **Supabase PostgreSQL** (`dbe_*` tables).
+A **C# / .NET 10** pipeline that extracts high-level macroeconomic indicators for
+all available countries from [DBnomics](https://db.nomics.world/), normalizes them
+into a **typed, extensible schema**, and performs idempotent bulk UPSERTs into a
+**local SQLite** database (`dbe_*` tables). An optional semantic layer embeds a
+catalog of metric/entity/series summaries and serves **vector RAG** answers.
+
+> Migrated from the former Python + Supabase/PostgreSQL implementation. There is no
+> server, no credential, and no `pip`/`pytest`/`ruff` dependency anymore.
 
 ---
 
-## 🗄️ Normalized Database Schema (`dbe_*`)
+## Requirements
 
-The pipeline connects to Supabase PostgreSQL and manages the normalized `dbe_*` tables:
+- **.NET SDK 10** (`dotnet --list-sdks` shows `10.0.4xx`).
+- **Ollama** (only for the semantic catalog + chat): `ollama serve`, then
+  `ollama pull nomic-embed-text` and a chat model (e.g. `ollama pull qwen2.5:7b-instruct`).
 
-| Table Name | Description |
+No database server is required — the store is a single SQLite file (`output/econdata.db`)
+plus a vendored `sqlite-vec` native extension (`native/sqlite-vec/`).
+
+---
+
+## Quick start
+
+```bash
+dotnet build EconData.slnx
+
+# Create the SQLite dbe_* schema (and the sqlite-vec vector table)
+dotnet run --project src/EconData.Cli -- init-db
+
+# Full extraction + transform + idempotent load for all metrics
+dotnet run --project src/EconData.Cli -- extract --metrics all --db
+
+# Build/refresh the semantic catalog (needs Ollama)
+dotnet run --project src/EconData.Cli -- vectorize
+
+# Ask the catalog a question (read-only vector RAG)
+dotnet run --project src/EconData.Cli -- chat --question "What is the latest US GDP?"
+```
+
+Common options: `--config PATH --db-path PATH --entities PATH --vec PATH --output-dir DIR`.
+`extract` also accepts `--metrics all|gdp_usd,population` and `--db`;
+`vectorize` accepts `--reembed`; `chat` accepts `--k N --show-sources --system FILE`.
+
+---
+
+## Database schema (`dbe_*`, SQLite)
+
+| Table | Description |
 | :--- | :--- |
-| `dbe_entities` | Canonical entity registry (countries = ISO-3166 alpha-3, aggregates, regions) with hierarchy |
+| `dbe_entities` | Canonical entity registry (ISO-3166 alpha-3 countries, aggregates, regions) with hierarchy |
 | `dbe_entity_aliases` | `(provider, provider_code) → entity` mapping resolving cross-provider collisions |
 | `dbe_metrics` | Indicator metadata registry (frequency, `base_unit`, `unit_normalization`, aggregation) |
-| `dbe_metric_synonyms` | Keyword synonyms for the future text-to-SQL layer |
+| `dbe_metric_synonyms` | Keyword synonyms for retrieval |
 | `dbe_sources` | Provider/dataset/indicator registration |
 | `dbe_entity_membership` | Aggregate → member entity relationships |
 | `dbe_observations` | Typed time-series core `(metric_id, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str)` |
-| `dbe_pipeline_runs` | Extended execution audit log |
-| `dbe_embeddings` | Document vectors (pgvector) for the semantic catalog layer |
+| `dbe_pipeline_runs` | Execution audit log |
+| `dbe_embeddings` | Document metadata for the semantic catalog |
+| `dbe_embeddings_vec` | sqlite-vec `vec0` table (768-dim cosine) |
 
-Views: `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`.
-
----
-
-## 🔒 Security (owner-only database)
-
-- Credentials are read from `config/.env` (gitignored). Copy `config/.env.example` → `config/.env`.
-- **Never commit a real password.** Rotate it if exposed.
-- In Supabase: disable the public `anon` role for `dbe_*` and restrict access by IP allowlist (no `0.0.0.0/0`).
-
-> **Full step-by-step deployment** (password rotation, Supabase hardening, schema init, live extraction): see [docs/DEPLOY.md](docs/DEPLOY.md).
+Views: `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`. DDL lives in
+[`sql/sqlite/schema.sql`](sql/sqlite/schema.sql).
 
 ---
 
-## 🚀 Execution Guide
+## Extending the pipeline
 
-### 1. Environment Configuration
-```bash
-cp config/.env.example config/.env
-# edit config/.env and set SUPABASE_HOST / SUPABASE_PASSWORD
-```
-
-### 2. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Initialize Database Schema Only
-```bash
-python -m src.main --init-db
-```
-
-### 4. Run Pipeline with PostgreSQL Ingestion
-```bash
-# Full extraction & database load
-python -m src.main --metrics all --db
-
-# Extract specific metrics into database
-python -m src.main --metrics gdp_usd population --db
-```
-
-### 5. (Optional) Semantic Catalog — Embed & Search
-```bash
-# Build embedding documents (catalog + series summaries) into dbe_embeddings
-python -m src.main --vectorize
-
-# Force re-embedding of all documents
-python -m src.main --reembed
-```
-Requires [Ollama](https://ollama.com/) serving `nomic-embed-text`
-(`ollama serve` then `ollama pull nomic-embed-text`). See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md).
-
-### 6. Ask the Catalog a Question (optional — vector RAG)
-```bash
-# Interactive REPL over the embedded catalog
-python -m src.chat
-
-# One-shot, non-interactive
-python -m src.chat --question "What is the latest US GDP?"
-
-# Narrower retrieval + print the retrieved doc_keys and similarities
-python -m src.chat --k 5 --show-sources
-```
-The assistant retrieves the top-k documents from `dbe_embeddings` and answers
-**from those documents only**, citing the `doc_key`s it used. It is read-only:
-no text-to-SQL, no generated SQL, no writes.
-
-It needs a **chat** model on top of the embedding model. With the default local
-Ollama endpoint that means `ollama pull qwen2.5:7b-instruct`; any
-OpenAI-compatible server (vLLM, LM Studio, OpenAI, Groq, ...) works by setting
-`LLM_BASE_URL` / `LLM_MODEL` in `config/.env`. No extra Python dependency.
-
-Answerable: latest / highest / lowest / recent trend per country and metric.
-Not answerable yet: arbitrary historical years and cross-entity aggregates —
-read-only tool-calling is the planned extension.
+All metrics are defined in `config/metrics.json`; canonical entities and aliases
+live in `config/entities.json` (exported once from the former Python seed). See
+[`EXPLAINER.md`](EXPLAINER.md) for the full field reference and examples
+(historical indicators, long-term forecasts, unit normalization).
 
 ---
 
+## Tests & formatting
 
-## 🧩 Extending the Pipeline
+```bash
+dotnet test EconData.slnx                    # xUnit unit + integration tests
+dotnet format EconData.slnx --verify-no-changes
+```
 
-All metrics are defined in `config/metrics.json`. See `EXPLAINER.md` for the full field reference and examples (historical indicators, long-term forecasts, higher-frequency series).
+The integration tests run hermetically against a temporary SQLite file (including
+a real `sqlite-vec` kNN round-trip) — no Docker, no server, no network.
 
 ---
 
-## 🧪 Tests & Linting
-```bash
-pytest            # unit tests
-ruff check src/   # lint
-```
+## Operations
 
+See [`docs/DEV_GUIDE.md`](docs/DEV_GUIDE.md) for development and [`docs/DEPLOY.md`](docs/DEPLOY.md)
+for the runbook (scheduling, backups, recovery).

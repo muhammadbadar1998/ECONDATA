@@ -3,6 +3,42 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] — 2026-10 — Migrated to C#/.NET 10 + SQLite
+
+### Changed (platform)
+- Rewrote the pipeline in **C# / .NET 10**; removed the Python implementation
+  (`src/*.py`, `tests/*.py`, `requirements.txt`, `pyproject.toml`, `.venv`,
+  pytest/ruff caches).
+- Replaced **Supabase/PostgreSQL (+ pgvector)** with a local **SQLite** database and
+  the **sqlite-vec** extension (`native/sqlite-vec`, pinned v0.1.9). Postgres
+  `SERIAL` → `INTEGER PRIMARY KEY AUTOINCREMENT`, `TIMESTAMPTZ` → ISO-8601 `TEXT`,
+  `JSONB`/`TEXT[]` → `TEXT`; the `DISTINCT ON`/`array_agg` coverage query was
+  rewritten in C#.
+- Configuration is now `config/appsettings.json` + environment variables (no
+  `config/.env`); the SQLite file path replaces the connection string.
+- Logging moved to **Serilog** (console + date-stamped + size-bounded rolling files).
+- Integration tests are hermetic: a temporary SQLite file, including a real
+  sqlite-vec kNN round-trip (no Docker/Supabase/Ollama).
+
+### Added
+- `.NET` solution `EconData.slnx` (`EconData.Core`, `EconData.Cli`, `EconData.Tests`),
+  `Directory.Build.props` (nullable, analyzers, warnings-as-errors), `global.json`.
+- New CLI: `init-db`, `check-db`, `extract --metrics all|a,b --db`,
+  `vectorize [--reembed]`, `chat [--question Q --k N --show-sources --system FILE]`.
+- `native/sqlite-vec/` (vendored loadable extension + README/VERSION).
+
+### Kept
+- `config/metrics.json` reused unchanged; canonical entities/aliases exported once
+  to `config/entities.json`.
+- Doc types (`metric`/`entity`/`entity_metric`), hash-diff vectorization with orphan
+  cleanup, and the read-only grounded RAG chat with `doc_key` citations.
+
+### Verification
+- `dotnet build`, `dotnet test` (**104 tests**), `dotnet format --verify-no-changes` clean.
+- Real run into SQLite: **75,327** observations across 9 metrics (idempotent re-run);
+  `vectorize` produced **1,892** documents (idempotent re-run); `chat` answered with a
+  `doc_key` citation.
+
 ## [Unreleased] — 2026-09
 
 ### Added (chatbot — vector RAG)

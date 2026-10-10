@@ -46,5 +46,8 @@ obj/
 # Pipeline Output Logs (keep CSV outputs, ignore log files)
 output/*.log
 output/*.log.*
+output/*.db
+output/*.db-wal
+output/*.db-shm
 output/logs/
 output/scratch/
