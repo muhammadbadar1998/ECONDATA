@@ -1,0 +1,48 @@
+#dashboard-grid {
+    min-height: 320px;
+}
+
+.grid-stack-item-content {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    background: #f8f9fa;
+}
+
+.widget-drag {
+    cursor: grab;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.widget-drag:active {
+    cursor: grabbing;
+}
+
+.widget-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.widget-settings {
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.chart {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 120px;
+}

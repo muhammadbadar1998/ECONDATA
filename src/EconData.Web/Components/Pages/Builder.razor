@@ -1,0 +1,606 @@
+@page "/builder"
+@using System.Text.Json
+@using EconData.Web.Services
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Dashboard Builder</PageTitle>
+
+<h1>Dashboard Builder</h1>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <button class="btn btn-primary" @onclick="RefreshDataAsync" disabled="@_loading">Refresh data</button>
+    <button class="btn btn-success" @onclick="SaveAsync" disabled="@(!_dirty || _saving)">
+        @(_saving ? "Saving..." : "Save layout")
+    </button>
+    @if (_dirty)
+    {
+        <span class="badge bg-warning text-dark">Unsaved changes</span>
+    }
+    @if (!string.IsNullOrEmpty(_saveError))
+    {
+        <span class="text-danger small">@_saveError</span>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(_softError))
+{
+    <div class="alert alert-warning">@_softError</div>
+}
+
+<div class="card mb-3">
+    <div class="card-header">Add widget</div>
+    <div class="card-body d-flex flex-wrap gap-2 align-items-end">
+        <div>
+            <label class="form-label small mb-1">Type</label>
+            <select class="form-select form-select-sm" @bind="_newType">
+                <option value="series">Series (line)</option>
+                <option value="coverage">Coverage (bar)</option>
+                <option value="snapshot">Snapshot (bar)</option>
+                <option value="runs">Runs (bar)</option>
+            </select>
+        </div>
+        @if (_newType is "series" or "snapshot")
+        {
+            <div>
+                <label class="form-label small mb-1">Entity</label>
+                <select class="form-select form-select-sm" @bind="_newEntity">
+                    @foreach (var entity in _entities)
+                    {
+                        <option value="@entity.EntityCode">@entity.EntityCode - @entity.EntityName</option>
+                    }
+                </select>
+            </div>
+        }
+        @if (_newType == "series")
+        {
+            <div>
+                <label class="form-label small mb-1">Metric</label>
+                <select class="form-select form-select-sm" @bind="_newMetric">
+                    @foreach (var metric in _metrics)
+                    {
+                        <option value="@metric.Code">@metric.Code - @metric.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <button class="btn btn-outline-primary" @onclick="AddWidgetAsync" disabled="@(_metrics.Count == 0)">Add widget</button>
+    </div>
+</div>
+
+@if (_layout is null)
+{
+    <p class="empty-state">Loading dashboard...</p>
+}
+else if (_layout.Widgets.Count == 0)
+{
+    <p class="empty-state">No widgets yet. Add one from the palette above.</p>
+}
+else
+{
+    <div id="dashboard-grid" class="grid-stack">
+        @foreach (var widget in _layout.Widgets)
+        {
+            <div class="grid-stack-item" gs-id="@widget.Id" gs-x="@widget.X" gs-y="@widget.Y" gs-w="@widget.W" gs-h="@widget.H">
+                <div class="grid-stack-item-content card">
+                    <div class="widget-header">
+                        <span class="widget-drag" title="Drag to move">
+                            <strong>@widget.Title</strong>
+                            <span class="badge bg-secondary ms-2">@widget.Type</span>
+                        </span>
+                        <span class="widget-actions">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => BeginEdit(widget)">Edit</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveWidgetAsync(widget)">Remove</button>
+                        </span>
+                    </div>
+
+                    @if (_editingId == widget.Id)
+                    {
+                        <div class="widget-settings">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-5">
+                                    <label class="form-label small mb-1">Title</label>
+                                    <input class="form-control form-control-sm" @bind="_editTitle" />
+                                </div>
+                                @if (widget.Type is "series" or "snapshot")
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Entity</label>
+                                        <select class="form-select form-select-sm" @bind="_editEntity">
+                                            @foreach (var entity in _entities)
+                                            {
+                                                <option value="@entity.EntityCode">@entity.EntityCode</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                                @if (widget.Type == "series")
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label small mb-1">Metric</label>
+                                        <select class="form-select form-select-sm" @bind="_editMetric">
+                                            @foreach (var metric in _metrics)
+                                            {
+                                                <option value="@metric.Code">@metric.Code</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                                <div class="col-md-4 d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary" @onclick="() => ApplyEditAsync(widget)">Apply</button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="CancelEdit">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (_errors.TryGetValue(widget.Id, out var error))
+                    {
+                        <div class="alert alert-danger py-1 px-2 small m-2">@error</div>
+                    }
+                    <div class="chart" id="chart-@widget.Id"></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<Builder>? _selfRef;
+    private DashboardLayout? _layout;
+    private IReadOnlyList<MetricItem> _metrics = Array.Empty<MetricItem>();
+    private IReadOnlyList<EntitySummary> _entities = Array.Empty<EntitySummary>();
+    private readonly Dictionary<string, string> _chartOptions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _errors = new(StringComparer.Ordinal);
+
+    private string _newType = "series";
+    private string? _newEntity = "USA";
+    private string? _newMetric = "gdp_usd";
+    private string? _editingId;
+    private string _editTitle = string.Empty;
+    private string? _editEntity;
+    private string? _editMetric;
+
+    private bool _loading;
+    private bool _dirty;
+    private bool _saving;
+    private string? _saveError;
+    private string? _softError;
+    private int _structureVersion;
+    private int _renderedStructureVersion = -1;
+    private int _chartVersion;
+    private int _renderedChartVersion = -1;
+    private CancellationTokenSource? _saveCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupsAsync();
+        try
+        {
+            _layout = await Http.GetFromJsonAsync<DashboardLayout>("api/dashboard/layout");
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Could not load the layout: {ex.Message}";
+            _layout = DashboardLayoutStore.DefaultLayout();
+        }
+
+        await LoadAllWidgetDataAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "/js/dashboard.js");
+            _selfRef = DotNetObjectReference.Create(this);
+        }
+
+        if (_module is null || _selfRef is null)
+        {
+            return;
+        }
+
+        if (_renderedStructureVersion != _structureVersion)
+        {
+            await _module.InvokeVoidAsync("initGrid", "dashboard-grid", BuildWidgetsJson(), _selfRef);
+            _renderedStructureVersion = _structureVersion;
+            _renderedChartVersion = -1;
+        }
+
+        if (_renderedChartVersion != _chartVersion)
+        {
+            await _module.InvokeVoidAsync("renderCharts", BuildChartsJson());
+            _renderedChartVersion = _chartVersion;
+        }
+    }
+
+    [JSInvokable]
+    public void OnLayoutChanged(string json)
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        List<PositionUpdate>? updates;
+        try
+        {
+            updates = JsonSerializer.Deserialize<List<PositionUpdate>>(json, WebJson);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (updates is null)
+        {
+            return;
+        }
+
+        var byId = updates.ToDictionary(update => update.Id, StringComparer.Ordinal);
+        var widgets = _layout.Widgets
+            .Select(widget => byId.TryGetValue(widget.Id, out var update)
+                ? widget with { X = update.X, Y = update.Y, W = update.W, H = update.H }
+                : widget)
+            .ToList();
+        _layout = _layout with { Widgets = widgets };
+        MarkDirty();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            _metrics = await Http.GetFromJsonAsync<IReadOnlyList<MetricItem>>("api/catalog/metrics")
+                ?? Array.Empty<MetricItem>();
+            _entities = await Http.GetFromJsonAsync<IReadOnlyList<EntitySummary>>("api/entities?limit=1000")
+                ?? Array.Empty<EntitySummary>();
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Could not load catalog data: {ex.Message}";
+        }
+
+        if (_entities.Count > 0 && string.IsNullOrEmpty(_newEntity))
+        {
+            _newEntity = _entities[0].EntityCode;
+        }
+    }
+
+    private async Task LoadAllWidgetDataAsync()
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        _loading = true;
+        await Task.WhenAll(_layout.Widgets.Select(LoadWidgetDataAsync));
+        _loading = false;
+    }
+
+    private async Task RefreshDataAsync() => await LoadAllWidgetDataAsync();
+
+    private async Task LoadWidgetDataAsync(DashboardWidget widget)
+    {
+        try
+        {
+            object? option = widget.Type switch
+            {
+                "series" => await BuildSeriesOptionAsync(widget),
+                "coverage" => await BuildCoverageOptionAsync(widget),
+                "snapshot" => await BuildSnapshotOptionAsync(widget),
+                "runs" => await BuildRunsOptionAsync(widget),
+                _ => null
+            };
+
+            if (option is null)
+            {
+                _errors[widget.Id] = "Widget configuration is incomplete.";
+                _chartOptions.Remove(widget.Id);
+            }
+            else
+            {
+                _errors.Remove(widget.Id);
+                _chartOptions[widget.Id] = JsonSerializer.Serialize(option);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors[widget.Id] = ex.Message;
+            _chartOptions.Remove(widget.Id);
+        }
+
+        _chartVersion++;
+    }
+
+    private async Task<object?> BuildSeriesOptionAsync(DashboardWidget widget)
+    {
+        if (string.IsNullOrEmpty(widget.Config.Entity) || string.IsNullOrEmpty(widget.Config.Metric))
+        {
+            return null;
+        }
+
+        var points = await Http.GetFromJsonAsync<IReadOnlyList<SeriesPoint>>(
+            $"api/series?entity={Uri.EscapeDataString(widget.Config.Entity)}&metric={Uri.EscapeDataString(widget.Config.Metric)}")
+            ?? Array.Empty<SeriesPoint>();
+        return LineOption(
+            widget.Title,
+            points.Select(point => point.Period).ToList(),
+            points.Select(point => point.Value).ToList(),
+            widget.Config.Metric);
+    }
+
+    private async Task<object> BuildCoverageOptionAsync(DashboardWidget widget)
+    {
+        var coverage = await Http.GetFromJsonAsync<IReadOnlyList<MetricCoverage>>("api/coverage")
+            ?? Array.Empty<MetricCoverage>();
+        return BarOption(
+            widget.Title,
+            "Observations",
+            coverage.Select(row => row.MetricCode).ToList(),
+            coverage.Select(row => (double)row.ObservationCount).ToList());
+    }
+
+    private async Task<object?> BuildSnapshotOptionAsync(DashboardWidget widget)
+    {
+        if (string.IsNullOrEmpty(widget.Config.Entity))
+        {
+            return null;
+        }
+
+        var rows = await Http.GetFromJsonAsync<IReadOnlyList<LatestSnapshotRow>>(
+            $"api/snapshot?entity={Uri.EscapeDataString(widget.Config.Entity)}&limit=100")
+            ?? Array.Empty<LatestSnapshotRow>();
+        var latest = rows
+            .GroupBy(row => row.MetricCode)
+            .Select(group => group.OrderByDescending(row => row.Period, StringComparer.Ordinal).First())
+            .OrderByDescending(row => row.Value)
+            .Take(12)
+            .ToList();
+        return BarOption(
+            widget.Title,
+            "Latest value",
+            latest.Select(row => row.MetricCode).ToList(),
+            latest.Select(row => row.Value).ToList());
+    }
+
+    private async Task<object> BuildRunsOptionAsync(DashboardWidget widget)
+    {
+        var runs = await Http.GetFromJsonAsync<IReadOnlyList<RunSummary>>("api/runs?limit=20")
+            ?? Array.Empty<RunSummary>();
+        var ordered = runs.Reverse().ToList();
+        return BarOption(
+            widget.Title,
+            "Seconds",
+            ordered.Select(run => run.RunTimestamp).ToList(),
+            ordered.Select(run => run.ExecutionSeconds).ToList());
+    }
+
+    private static object LineOption(string title, IReadOnlyList<string> labels, IReadOnlyList<double> values, string? name)
+        => new
+        {
+            title = new { text = title, left = "center", textStyle = new { fontSize = 13 } },
+            tooltip = new { trigger = "axis" },
+            grid = new { left = 56, right = 16, top = 40, bottom = 56 },
+            xAxis = new { type = "category", data = labels, axisLabel = new { rotate = 35, fontSize = 10 } },
+            yAxis = new { type = "value", scale = true },
+            series = new[]
+            {
+                new
+                {
+                    name = name ?? title,
+                    type = "line",
+                    smooth = true,
+                    showSymbol = false,
+                    areaStyle = new { opacity = 0.12 },
+                    data = values
+                }
+            }
+        };
+
+    private static object BarOption(string title, string seriesName, IReadOnlyList<string> labels, IReadOnlyList<double> values)
+        => new
+        {
+            title = new { text = title, left = "center", textStyle = new { fontSize = 13 } },
+            tooltip = new { trigger = "axis" },
+            grid = new { left = 56, right = 16, top = 40, bottom = 56 },
+            xAxis = new { type = "category", data = labels, axisLabel = new { rotate = 35, fontSize = 10 } },
+            yAxis = new { type = "value", scale = true },
+            series = new[]
+            {
+                new { name = seriesName, type = "bar", data = values, barMaxWidth = 28 }
+            }
+        };
+
+    private string BuildWidgetsJson()
+        => JsonSerializer.Serialize(_layout?.Widgets ?? Array.Empty<DashboardWidget>(), WebJson);
+
+    private string BuildChartsJson()
+    {
+        var charts = _chartOptions
+            .Select(pair => new { id = pair.Key, option = JsonSerializer.Deserialize<JsonElement>(pair.Value) })
+            .ToList();
+        return JsonSerializer.Serialize(charts, WebJson);
+    }
+
+    private async Task AddWidgetAsync()
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        var id = "w_" + Guid.NewGuid().ToString("N")[..8];
+        var nextY = _layout.Widgets.Count == 0 ? 0 : _layout.Widgets.Max(widget => widget.Y + widget.H);
+        var title = _newType switch
+        {
+            "series" => $"{_newEntity} - {_newMetric}",
+            "snapshot" => $"{_newEntity} - latest values",
+            "coverage" => "Observations by metric",
+            "runs" => "Execution seconds per run",
+            _ => "Widget"
+        };
+        var widget = new DashboardWidget(
+            id,
+            _newType,
+            title,
+            0,
+            nextY,
+            6,
+            3,
+            new DashboardWidgetConfig(
+                _newType is "series" or "snapshot" ? _newEntity : null,
+                _newType == "series" ? _newMetric : null,
+                null));
+
+        _layout = _layout with { Widgets = _layout.Widgets.Append(widget).ToList() };
+        _structureVersion++;
+        MarkDirty();
+        await LoadWidgetDataAsync(widget);
+    }
+
+    private async Task RemoveWidgetAsync(DashboardWidget widget)
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        if (_module is not null)
+        {
+            await _module.InvokeVoidAsync("disposeChart", widget.Id);
+        }
+
+        _layout = _layout with
+        {
+            Widgets = _layout.Widgets.Where(item => item.Id != widget.Id).ToList()
+        };
+        _chartOptions.Remove(widget.Id);
+        _errors.Remove(widget.Id);
+        _chartVersion++;
+        _structureVersion++;
+        _editingId = null;
+        MarkDirty();
+    }
+
+    private void BeginEdit(DashboardWidget widget)
+    {
+        _editingId = widget.Id;
+        _editTitle = widget.Title;
+        _editEntity = widget.Config.Entity;
+        _editMetric = widget.Config.Metric;
+    }
+
+    private void CancelEdit() => _editingId = null;
+
+    private async Task ApplyEditAsync(DashboardWidget widget)
+    {
+        if (_layout is null)
+        {
+            return;
+        }
+
+        var config = widget.Config with
+        {
+            Entity = widget.Type is "series" or "snapshot" ? _editEntity : null,
+            Metric = widget.Type == "series" ? _editMetric : null
+        };
+        var updated = widget with { Title = string.IsNullOrWhiteSpace(_editTitle) ? widget.Title : _editTitle.Trim(), Config = config };
+        _layout = _layout with
+        {
+            Widgets = _layout.Widgets.Select(item => item.Id == widget.Id ? updated : item).ToList()
+        };
+        _editingId = null;
+        _chartVersion++;
+        _structureVersion++;
+        MarkDirty();
+        await LoadWidgetDataAsync(updated);
+    }
+
+    private void MarkDirty()
+    {
+        _dirty = true;
+        _saveError = null;
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+        _saveCts = new CancellationTokenSource();
+        _ = DebounceSaveAsync(_saveCts.Token);
+    }
+
+    private async Task DebounceSaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(600, cancellationToken);
+            await SaveAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer change.
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_layout is null || _saving)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            using var response = await Http.PutAsJsonAsync("api/dashboard/layout", _layout);
+            if (response.IsSuccessStatusCode)
+            {
+                _dirty = false;
+                _saveError = null;
+            }
+            else
+            {
+                _saveError = $"Save failed ({(int)response.StatusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Save failed: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _saveCts?.Cancel();
+        _saveCts?.Dispose();
+        _selfRef?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("dispose");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone.
+            }
+        }
+    }
+
+    private sealed record PositionUpdate(string Id, int X, int Y, int W, int H);
+}

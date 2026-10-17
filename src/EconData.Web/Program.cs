@@ -57,6 +57,8 @@ builder.Services.AddSingleton<IJobExecutor>(sp => new PipelineJobExecutor(
     schemaPath,
     logger));
 builder.Services.AddSingleton<JobService>();
+builder.Services.AddSingleton(_ => new DashboardLayoutStore(
+    Path.Combine(CliPaths.Resolve(root, config.OutputDir), "dashboards.json")));
 builder.Services.AddScoped(sp => new HttpClient
 {
     BaseAddress = new Uri(sp.GetRequiredService<NavigationManager>().BaseUri),
@@ -113,6 +115,20 @@ app.MapGet("/api/jobs/{id}/log", (string id, long since, JobService jobs, InMemo
 {
     var current = jobs.Snapshot().JobId;
     return Results.Ok(string.Equals(current, id, StringComparison.Ordinal) ? sink.Snapshot(since) : Array.Empty<LogEntry>());
+});
+
+app.MapGet("/api/dashboard/layout", (DashboardLayoutStore store) => Results.Ok(store.Load()));
+
+app.MapPut("/api/dashboard/layout", async (DashboardLayout? layout, DashboardLayoutStore store) =>
+{
+    var error = DashboardLayoutStore.Validate(layout);
+    if (error is not null)
+    {
+        return Results.BadRequest(new { error });
+    }
+
+    await store.SaveAsync(layout!);
+    return Results.NoContent();
 });
 
 app.MapRazorComponents<App>()
