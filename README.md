@@ -127,7 +127,7 @@ live in `config/entities.json` (exported once from the former Python seed). See
 ## Tests & formatting
 
 ```bash
-dotnet test EconData.slnx                    # 134 xUnit unit, integration, and Web API tests
+dotnet test EconData.slnx                    # 135 xUnit unit, integration, and Web API tests
 dotnet format EconData.slnx --verify-no-changes
 ```
 

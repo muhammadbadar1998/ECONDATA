@@ -10,6 +10,7 @@ public sealed class SqliteConnectionFactory
 {
     private static readonly string[] Pragmas =
     {
+        "query_only = OFF",
         "foreign_keys = ON",
         "busy_timeout = 5000",
         "journal_mode = WAL",

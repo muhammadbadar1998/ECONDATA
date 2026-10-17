@@ -23,8 +23,13 @@ All notable changes to this project are documented here. Format loosely follows
 - `docs/DEV_GUIDE.md` expanded with Web architecture, builder contract, asset
   refresh, and troubleshooting.
 
+### Fixed
+- `SqliteConnectionFactory.Open` now resets `PRAGMA query_only = OFF`, so a pooled
+  connection previously used by analytics read-only queries can still be used by
+  pipeline writes (fixed "attempt to write a readonly database" on `/runner`).
+
 ### Verification
-- `dotnet build` 0 warnings; **134 tests** green (111 Core + 23 Web);
+- `dotnet build` 0 warnings; **135 tests** green (112 Core + 23 Web);
   `dotnet format --verify-no-changes` clean.
 - Live smoke: all pages return 200, catalog/jobs/layout endpoints respond, a Check
   job completes, and layout GET/PUT round-trips.
@@ -158,3 +163,4 @@ All notable changes to this project are documented here. Format loosely follows
 - `requirements.txt`: removed `streamlit`, `plotly`; documented Ollama as an
   external service (uses `requests`).
 - `README.md`, `EXPLAINER.md`, `docs/DEPLOY.md`: updated for ETL-only posture.
+
