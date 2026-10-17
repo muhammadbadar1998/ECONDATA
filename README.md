@@ -1,145 +1,125 @@
-# EconData — .NET Economic Data Pipeline (SQLite)
+# EconData
 
-A **C# / .NET 10** pipeline that extracts high-level macroeconomic indicators for
-all available countries from [DBnomics](https://db.nomics.world/), normalizes them
-into a **typed, extensible schema**, and performs idempotent bulk UPSERTs into a
-**local SQLite** database (`dbe_*` tables). An optional semantic layer embeds a
-catalog of metric/entity/series summaries and serves **vector RAG** answers.
+A **C# / .NET 10** pipeline for macroeconomic data: it pulls indicators from
+[DBnomics](https://db.nomics.world/), resolves entities and units, and loads them
+idempotently into a **local SQLite** database. On top of that it provides an
+optional vector catalog for retrieval-augmented (RAG) questions, a CLI, and a
+localhost Blazor dashboard with a pipeline runner.
 
-> Migrated from the former Python + Supabase/PostgreSQL implementation. There is no
-> server, no credential, and no `pip`/`pytest`/`ruff` dependency anymore.
+No database server, Docker, or credentials are required — everything lives in one
+SQLite file (`output/econdata.db`) plus a vendored `sqlite-vec` extension.
 
----
+## Features
+
+- **ETL**: 9 macro indicators across ~275 countries/aggregates (75k+ observations),
+  typed dates, unit normalization, and bulk UPSERTs.
+- **Vector catalog**: embeds metric/entity/series summaries into `sqlite-vec`
+  (768-dim cosine) and answers questions only from those documents.
+- **CLI**: `init-db`, `check-db`, `extract`, `vectorize`, `chat`.
+- **Web UI**: Overview, Runner with live progress/logs/cancel, Data, Metrics,
+  Entities, Runs, and a drag/resize dashboard builder (ECharts + GridStack).
+- **Hermetic tests**: temporary SQLite databases, including a real `sqlite-vec`
+  kNN round-trip.
 
 ## Requirements
 
-- **.NET SDK 10** (`dotnet --list-sdks` shows `10.0.4xx`).
-- **Ollama** (only for the semantic catalog + chat): `ollama serve`, then
-  `ollama pull nomic-embed-text` and a chat model (e.g. `ollama pull qwen2.5:7b-instruct`).
-
-No database server is required — the store is a single SQLite file (`output/econdata.db`)
-plus a vendored `sqlite-vec` native extension (`native/sqlite-vec/`).
-
----
+- **.NET SDK 10** (`10.0.4xx`).
+- **Ollama** (only for `vectorize` and `chat`):
+  ```bash
+  ollama serve
+  ollama pull nomic-embed-text
+  ollama pull qwen2.5:7b-instruct   # any chat-capable model works
+  ```
 
 ## Quick start
 
 ```bash
 dotnet build EconData.slnx
 
-# Create the SQLite dbe_* schema (and the sqlite-vec vector table)
+# Create the schema (SQLite + vector table)
 dotnet run --project src/EconData.Cli -- init-db
 
-# Full extraction + transform + idempotent load for all metrics
+# Extract all metrics and load them into SQLite
 dotnet run --project src/EconData.Cli -- extract --metrics all --db
 
-# Build/refresh the semantic catalog (needs Ollama)
+# Embed the catalog (requires Ollama)
 dotnet run --project src/EconData.Cli -- vectorize
 
-# Ask the catalog a question (read-only vector RAG)
+# Ask a question grounded in the catalog
 dotnet run --project src/EconData.Cli -- chat --question "What is the latest US GDP?"
 ```
 
-Common options: `--config PATH --db-path PATH --entities PATH --vec PATH --output-dir DIR`.
-`extract` also accepts `--metrics all|gdp_usd,population` and `--db`;
-`vectorize` accepts `--reembed`; `chat` accepts `--k N --show-sources --system FILE`.
-
----
+Common options: `--config PATH`, `--db-path PATH`, `--entities PATH`,
+`--vec PATH`, `--output-dir DIR`. `extract` also accepts
+`--metrics all|gdp_usd,population` and `--db`; `vectorize` accepts `--reembed`;
+`chat` accepts `--k N --show-sources --system FILE`.
 
 ## Web UI
-
-The same stack also ships a localhost-only Blazor Server UI (single user, no auth):
 
 ```bash
 dotnet run --project src/EconData.Web
 # http://127.0.0.1:5000
 ```
 
-| Page | Purpose |
+| Page | What it does |
 | :--- | :--- |
-| `/` | Overview tiles (row counts) and the latest pipeline run |
-| `/runner` | Run Check / Init / Extract / Vectorize / Run All with live progress, log tail, cancel, and run history |
-| `/data` | Entity/metric series explorer plus the latest snapshot |
-| `/metrics` | Metric coverage: entities, observations, year range |
-| `/entities` | Searchable entity registry with alias/observation counts |
-| `/runs` | Pipeline run audit history |
-| `/builder` | Drag/resize dashboard of ECharts widgets with a saved layout |
+| `/` | Row counts and the latest pipeline run |
+| `/runner` | Check / Init / Extract / Vectorize / Run All, live progress, log tail, cancel |
+| `/data` | Series explorer and latest snapshot |
+| `/metrics` | Per-metric coverage and year ranges |
+| `/entities` | Searchable entity registry |
+| `/runs` | Pipeline run history |
+| `/builder` | Drag/resize ECharts widgets; layout saved to `output/dashboards.json` |
 
-Job execution is single-concurrency: one pipeline job at a time, with progress and
-the in-memory log tail served by polling (`GET /api/jobs/current`,
-`GET /api/jobs/{id}/log?since=N`). Cancelling a job is cooperative.
+The app is localhost-only, single-user, and runs one pipeline job at a time.
+Browser assets (Bootstrap, ECharts, GridStack) are vendored for offline use.
 
-The builder has four predefined widget types (series line, coverage/snapshot/runs
-bars). Layouts persist to `output/dashboards.json` and are restored on reload or
-fall back to defaults if the file is missing or corrupt. Browser assets
-(Bootstrap, ECharts, GridStack) are vendored under
-`src/EconData.Web/wwwroot/vendor/` so the UI works offline.
+## Configuration
 
-### HTTP API
+Settings come from `config/appsettings.json`, then environment variables (which
+win), with safe defaults. Main variables:
 
-| Method & path | Returns |
+| Variable | Default |
 | :--- | :--- |
-| `GET /api/overview` | Row counts and last-run status |
-| `GET /api/coverage` | Per-metric coverage summary |
-| `GET /api/series?entity=USA&metric=gdp_usd` | Time-series points |
-| `GET /api/snapshot?entity=&metric=&category=&limit=` | Latest values |
-| `GET /api/entities?q=&type=&limit=` | Entity summaries |
-| `GET /api/runs?limit=` | Pipeline run history |
-| `GET /api/catalog/metrics` | Metric catalog (works before DB init) |
-| `POST /api/jobs` | Start a job (`202`), or `409` when one is running |
-| `GET /api/jobs/current` | Current/last job status |
-| `POST /api/jobs/{id}/cancel` | Request cancellation |
-| `GET /api/jobs/{id}/log?since=N` | In-memory log tail |
-| `GET /api/dashboard/layout` | Saved dashboard layout (or defaults) |
-| `PUT /api/dashboard/layout` | Validate and persist a layout |
+| `ECONDATA_SQLITE_PATH` | `./output/econdata.db` |
+| `OUTPUT_DIR` | `./output` |
+| `CONFIG_PATH` | `./config/metrics.json` |
+| `ECONDATA_ENTITIES_PATH` | `./config/entities.json` |
+| `DBNOMICS_BASE_URL` | `https://api.db.nomics.world/v22` |
+| `ECONDATA_SQLITE_VEC_PATH` | `native/sqlite-vec/<rid>/vec0.{dll,so,dylib}` |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` |
+| `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` |
+| `LLM_BASE_URL` | `http://127.0.0.1:11434/v1` |
+| `LLM_MODEL` | `qwen2.5:7b-instruct` |
+| `LOG_LEVEL` | `INFO` |
 
----
+## Project layout
 
-## Database schema (`dbe_*`, SQLite)
+```
+src/EconData.Core   ETL, SQLite, analytics, vector catalog, pipeline runner
+src/EconData.Cli    Command-line entry point
+src/EconData.Web    Blazor Server UI + Minimal API
+tests/              Core integration tests + Web API/job/builder tests
+config/             Metrics and entity seed data
+sql/sqlite/         Schema DDL
+native/sqlite-vec/  Vendored vector extension
+docs/               Developer guide and deploy notes
+```
 
-| Table | Description |
-| :--- | :--- |
-| `dbe_entities` | Canonical entity registry (ISO-3166 alpha-3 countries, aggregates, regions) with hierarchy |
-| `dbe_entity_aliases` | `(provider, provider_code) → entity` mapping resolving cross-provider collisions |
-| `dbe_metrics` | Indicator metadata registry (frequency, `base_unit`, `unit_normalization`, aggregation) |
-| `dbe_metric_synonyms` | Keyword synonyms for retrieval |
-| `dbe_sources` | Provider/dataset/indicator registration |
-| `dbe_entity_membership` | Aggregate → member entity relationships |
-| `dbe_observations` | Typed time-series core `(metric_id, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str)` |
-| `dbe_pipeline_runs` | Execution audit log |
-| `dbe_embeddings` | Document metadata for the semantic catalog |
-| `dbe_embeddings_vec` | sqlite-vec `vec0` table (768-dim cosine) |
-
-Views: `v_latest_metrics_snapshot`, `v_dated_execution_snapshot`. DDL lives in
-[`sql/sqlite/schema.sql`](sql/sqlite/schema.sql).
-
----
-
-## Extending the pipeline
-
-All metrics are defined in `config/metrics.json`; canonical entities and aliases
-live in `config/entities.json` (exported once from the former Python seed). See
-[`EXPLAINER.md`](EXPLAINER.md) for the full field reference and examples
-(historical indicators, long-term forecasts, unit normalization).
-
----
-
-## Tests & formatting
+## Tests
 
 ```bash
-dotnet test EconData.slnx                    # 135 xUnit unit, integration, and Web API tests
+dotnet test EconData.slnx                    # 135 tests
 dotnet format EconData.slnx --verify-no-changes
 ```
 
-The integration tests run hermetically against a temporary SQLite file (including
-a real `sqlite-vec` kNN round-trip) — no Docker, no server, no network. Web tests
-use `WebApplicationFactory<Program>` with temporary databases and, for jobs, a fake
-`IJobExecutor`.
+Tests are hermetic (temporary SQLite files, fake services). The vectorizer test
+uses the real `sqlite-vec` extension; no network or Ollama is needed.
 
----
+## Documentation
 
-## Operations
-
-See [`docs/DEV_GUIDE.md`](docs/DEV_GUIDE.md) for architecture, development workflow,
-and troubleshooting. Pipeline operations use the CLI commands in
-[Quick start](#quick-start) or the `/runner` page.
+- [`docs/DEV_GUIDE.md`](docs/DEV_GUIDE.md) — architecture, Web services, builder,
+  configuration details, troubleshooting.
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — operational runbook.
+- [`EXPLAINER.md`](EXPLAINER.md) — metric/entity field reference and examples.
+- [`CHANGELOG.md`](CHANGELOG.md) — release history.
