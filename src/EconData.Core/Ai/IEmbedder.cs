@@ -8,4 +8,6 @@ public interface IEmbedder
     Task<IReadOnlyList<float[]>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default);
 
     Task<float[]> EmbedQueryAsync(string text, CancellationToken cancellationToken = default);
+
+    int BatchSize { get; }
 }

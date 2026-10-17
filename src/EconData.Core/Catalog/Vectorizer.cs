@@ -201,7 +201,7 @@ public sealed class Vectorizer : IDocumentSearcher
         return documents;
     }
 
-    public async Task<Dictionary<string, int>> VectorizeAllAsync(int recentPoints = DefaultRecentPoints, CancellationToken cancellationToken = default)
+    public async Task<Dictionary<string, int>> VectorizeAllAsync(int recentPoints = DefaultRecentPoints, IProgress<VectorizeProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         if (!await _embedder.VerifyConnectivityAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -229,6 +229,8 @@ public sealed class Vectorizer : IDocumentSearcher
             }
         }
 
+        progress?.Report(new VectorizeProgress(VectorizeProgressKind.BuildStarted, documents.Count, 0, 0, 0, 0, 0));
+
         _logger.Information(
             "Vectorization plan: {Total} document(s), {ToEmbed} to embed, {Current} already current.",
             documents.Count,
@@ -236,12 +238,39 @@ public sealed class Vectorizer : IDocumentSearcher
             documents.Count - toEmbed.Count);
 
         var embedded = 0;
+        var batchSize = Math.Max(1, _embedder.BatchSize);
+        var totalBatches = toEmbed.Count > 0 ? (int)Math.Ceiling((double)toEmbed.Count / batchSize) : 0;
         if (toEmbed.Count > 0)
         {
-            IReadOnlyList<float[]> vectors;
+            var allVectors = new List<float[]>(toEmbed.Count);
+
+            progress?.Report(new VectorizeProgress(VectorizeProgressKind.BuildCompleted, documents.Count, toEmbed.Count, 0, totalBatches, 0, 0));
+            progress?.Report(new VectorizeProgress(VectorizeProgressKind.EmbedStarted, documents.Count, toEmbed.Count, 0, totalBatches, 0, 0));
+
             try
             {
-                vectors = await _embedder.EmbedAsync(toEmbed.Select(document => document.Content).ToList(), cancellationToken).ConfigureAwait(false);
+                for (var batchIndex = 0; batchIndex < totalBatches; batchIndex++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var start = batchIndex * batchSize;
+                    var count = Math.Min(batchSize, toEmbed.Count - start);
+                    var batch = toEmbed.GetRange(start, count);
+                    var batchTexts = batch.Select(d => d.Content).ToList();
+
+                    var vectors = await _embedder.EmbedAsync(batchTexts, cancellationToken).ConfigureAwait(false);
+                    allVectors.AddRange(vectors);
+                    embedded += vectors.Count;
+
+                    progress?.Report(new VectorizeProgress(
+                        VectorizeProgressKind.BatchCompleted,
+                        documents.Count,
+                        toEmbed.Count,
+                        embedded,
+                        totalBatches,
+                        batchIndex + 1,
+                        0));
+                }
             }
             catch (EmbeddingException ex)
             {
@@ -249,8 +278,7 @@ public sealed class Vectorizer : IDocumentSearcher
                 return Stats(0, 0, 0, toEmbed.Count);
             }
 
-            _store.Upsert(toEmbed, vectors);
-            embedded = toEmbed.Count;
+            _store.Upsert(toEmbed, allVectors);
         }
 
         var currentKeys = documents.Select(document => (document.DocKey, document.DocType)).ToHashSet();
@@ -262,6 +290,15 @@ public sealed class Vectorizer : IDocumentSearcher
         {
             _store.DeleteOrphans(orphans);
         }
+
+        progress?.Report(new VectorizeProgress(
+            VectorizeProgressKind.Completed,
+            documents.Count,
+            toEmbed.Count,
+            embedded,
+            totalBatches,
+            totalBatches,
+            orphans.Count));
 
         return Stats(embedded, embedded, orphans.Count, 0);
     }

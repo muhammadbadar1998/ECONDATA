@@ -43,7 +43,11 @@ public sealed class PipelineRunner
         _logger = logger;
     }
 
-    public async Task<PipelineSummary> RunAsync(IReadOnlyList<string> metricsToRun, bool loadToDb, CancellationToken cancellationToken = default)
+    public async Task<PipelineSummary> RunAsync(
+        IReadOnlyList<string> metricsToRun,
+        bool loadToDb,
+        IProgress<PipelineProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metricsToRun);
         var started = Stopwatch.StartNew();
@@ -53,6 +57,15 @@ public sealed class PipelineRunner
         _logger.Information("=========================================================");
         _logger.Information("Total metrics to extract: {Count} -> {Metrics}", metricsToRun.Count, string.Join(", ", metricsToRun));
         _logger.Information("Target database: SQLite ({Status})", loadToDb ? "Enabled" : "Disabled");
+
+        progress?.Report(new PipelineProgress(
+            PipelineProgressKind.RunStarted,
+            null,
+            0,
+            metricsToRun.Count,
+            0,
+            0,
+            started.Elapsed.TotalSeconds));
 
         var resolver = new EntityResolver(_seed, loadToDb ? _factory : null, _logger);
         DatabaseLoader? loader = null;
@@ -97,6 +110,14 @@ public sealed class PipelineRunner
 
             providers.Add(metric.Provider);
             var metricStarted = Stopwatch.StartNew();
+            progress?.Report(new PipelineProgress(
+                PipelineProgressKind.MetricStarted,
+                metricCode,
+                index + 1,
+                metricsToRun.Count,
+                0,
+                0,
+                metricStarted.Elapsed.TotalSeconds));
             try
             {
                 _logger.Information(
@@ -134,10 +155,27 @@ public sealed class PipelineRunner
                     records.Count,
                     loader is not null ? $", {upserted} upserted" : string.Empty,
                     metricStarted.Elapsed.TotalSeconds);
+
+                progress?.Report(new PipelineProgress(
+                    PipelineProgressKind.MetricCompleted,
+                    metricCode,
+                    index + 1,
+                    metricsToRun.Count,
+                    records.Count,
+                    upserted,
+                    metricStarted.Elapsed.TotalSeconds));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.Error(ex, "Error extracting metric '{Metric}'.", metricCode);
+                progress?.Report(new PipelineProgress(
+                    PipelineProgressKind.MetricCompleted,
+                    metricCode,
+                    index + 1,
+                    metricsToRun.Count,
+                    0,
+                    0,
+                    metricStarted.Elapsed.TotalSeconds));
             }
         }
 
@@ -156,10 +194,14 @@ public sealed class PipelineRunner
                 executionSeconds: elapsed);
         }
 
-        _logger.Information("=========================================================");
-        _logger.Information(" Pipeline Completed Successfully in {Elapsed:F2}s ", elapsed);
-        _logger.Information(" Total Extracted Observations: {Total} ", totalObservations);
-        _logger.Information("=========================================================");
+        progress?.Report(new PipelineProgress(
+            PipelineProgressKind.RunCompleted,
+            null,
+            metricsToRun.Count,
+            metricsToRun.Count,
+            totalObservations,
+            observationsUpserted,
+            elapsed));
 
         return new PipelineSummary(totalObservations, observationsUpserted, elapsed);
     }

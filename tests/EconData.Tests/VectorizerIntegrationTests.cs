@@ -117,6 +117,8 @@ public class VectorizerIntegrationTests : IDisposable
 
     private sealed class FakeEmbedder : IEmbedder
     {
+        public int BatchSize => 32;
+
         public Task<bool> VerifyConnectivityAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(true);
 

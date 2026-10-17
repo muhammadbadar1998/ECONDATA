@@ -1,15 +1,11 @@
 using System.Globalization;
 using EconData.Core.Configuration;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 namespace EconData.Core.Logging;
 
-/// <summary>
-/// Configures Serilog to write to the console plus the same two text files the
-/// Python pipeline used: a date-stamped file per day and a size-bounded rolling
-/// "latest" file.
-/// </summary>
 public static class LoggingSetup
 {
     public const string LogTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}";
@@ -17,10 +13,10 @@ public static class LoggingSetup
     private const long MaxLatestBytes = 5 * 1024 * 1024;
     private const int LatestBackupCount = 5;
 
-    public static ILogger Configure(AppConfig config, string basename = "pipeline", bool console = true, bool consoleToStderr = false)
+    public static ILogger Configure(AppConfig config, string basename = "pipeline", bool console = true, bool consoleToStderr = false, ILogEventSink? extraSink = null)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return Configure(config.OutputDir, basename, ParseLevel(config.LogLevel), console, consoleToStderr);
+        return Configure(config.OutputDir, basename, ParseLevel(config.LogLevel), console, consoleToStderr, extraSink);
     }
 
     public static ILogger Configure(
@@ -28,7 +24,8 @@ public static class LoggingSetup
         string basename = "pipeline",
         LogEventLevel level = LogEventLevel.Information,
         bool console = true,
-        bool consoleToStderr = false)
+        bool consoleToStderr = false,
+        ILogEventSink? extraSink = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDir);
         ArgumentException.ThrowIfNullOrWhiteSpace(basename);
@@ -42,8 +39,7 @@ public static class LoggingSetup
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Is(level)
             .Enrich.FromLogContext()
-            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
+            .Enrich.WithProperty("SourceContext", typeof(LoggingSetup).Namespace)
             .WriteTo.File(datedPath, outputTemplate: LogTemplate)
             .WriteTo.File(
                 latestPath,
@@ -51,6 +47,11 @@ public static class LoggingSetup
                 fileSizeLimitBytes: MaxLatestBytes,
                 rollOnFileSizeLimit: true,
                 retainedFileCountLimit: LatestBackupCount);
+
+        if (extraSink is not null)
+        {
+            configuration = configuration.WriteTo.Sink(extraSink);
+        }
 
         if (console)
         {

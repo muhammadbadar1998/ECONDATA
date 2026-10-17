@@ -1,0 +1,417 @@
+@page "/runner"
+@using System.Net
+@using EconData.Web.Services
+@inject HttpClient Http
+@implements IDisposable
+
+<PageTitle>Pipeline Runner</PageTitle>
+
+<h1>Pipeline Runner</h1>
+
+@if (_status?.State == JobState.Running)
+{
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <span>Job <strong>@_status.JobId</strong> is running (@_status.Kind).</span>
+        <button class="btn btn-outline-danger btn-sm" @onclick="CancelAsync" disabled="@_cancelPending">Cancel</button>
+    </div>
+}
+
+@if (_softError is not null)
+{
+    <div class="alert alert-warning">@_softError</div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Database</div>
+            <div class="card-body d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary" @onclick="() => StartAsync(JobKind.Check)" disabled="@IsRunning">Check DB</button>
+                <button class="btn btn-primary" @onclick="() => StartAsync(JobKind.Init)" disabled="@IsRunning">Init DB</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">Pipeline</div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <label class="form-label">Metrics (none selected = all)</label>
+                    <select class="form-select" multiple size="6" @onchange="OnMetricsChanged" disabled="@IsRunning">
+                        @foreach (var metric in _metrics)
+                        {
+                            <option value="@metric.Code">@metric.Code - @metric.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="loadToDb" @bind="_loadToDb" disabled="@IsRunning" />
+                    <label class="form-check-label" for="loadToDb">Load to DB</label>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-success" @onclick="() => StartAsync(JobKind.Extract)" disabled="@IsRunning">Extract</button>
+                    <button class="btn btn-success" @onclick="() => StartAsync(JobKind.Vectorize)" disabled="@IsRunning">Vectorize</button>
+                    <button class="btn btn-warning" @onclick="() => StartAsync(JobKind.RunAll)" disabled="@IsRunning">Run All</button>
+                </div>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="reembed" @bind="_reembed" disabled="@IsRunning" />
+                    <label class="form-check-label" for="reembed">Reembed all documents</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Status</span>
+        @if (_status is not null)
+        {
+            <span class="badge @StateBadge(_status.State)">@_status.State</span>
+        }
+    </div>
+    <div class="card-body">
+        @if (_status is null || _status.State == JobState.Idle)
+        {
+            <p class="text-muted mb-0">No job has run in this session.</p>
+        }
+        else
+        {
+            <p class="mb-2">
+                <strong>@_status.Kind</strong>
+                @if (!string.IsNullOrEmpty(_status.Phase))
+                {
+                    <span class="text-muted">/ @_status.Phase</span>
+                }
+                @if (_status.StartedAt is not null)
+                {
+                    <span class="text-muted"> - started @_status.StartedAt.Value.ToLocalTime().ToString("HH:mm:ss")</span>
+                }
+                @if (_status.FinishedAt is not null)
+                {
+                    <span class="text-muted"> - finished @_status.FinishedAt.Value.ToLocalTime().ToString("HH:mm:ss")</span>
+                }
+            </p>
+            @if (!string.IsNullOrEmpty(_status.Message))
+            {
+                <p>@_status.Message</p>
+            }
+            @if (!string.IsNullOrEmpty(_status.Error))
+            {
+                <div class="alert alert-danger py-2 mb-2">@_status.Error</div>
+            }
+            <div class="progress mb-2" role="progressbar">
+                <div class="progress-bar" style="width: @ProgressPercent()%">@ProgressPercent()%</div>
+            </div>
+            <p class="text-muted small mb-3">@_status.Current / @_status.Total</p>
+
+            @if (_status.Steps.Count > 0)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Metric</th>
+                                <th>Records</th>
+                                <th>Upserted</th>
+                                <th>Seconds</th>
+                                <th>State</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var step in _status.Steps)
+                            {
+                                <tr>
+                                    <td>@step.Index</td>
+                                    <td>@step.MetricCode</td>
+                                    <td>@step.Records</td>
+                                    <td>@step.Upserted</td>
+                                    <td>@step.Seconds.ToString("F2")</td>
+                                    <td>@step.State</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Log</div>
+    <div class="card-body">
+        @if (_logs.Count == 0)
+        {
+            <p class="text-muted mb-0">No log output yet.</p>
+        }
+        else
+        {
+            <pre class="bg-dark text-light p-3 rounded mb-0" style="max-height: 320px; overflow-y: auto;">@foreach (var entry in _logs)
+                {
+                    @($"{entry.Timestamp.ToLocalTime():HH:mm:ss} [{entry.Level}] {entry.Message}\n")
+                }</pre>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Run History</span>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="LoadRunsAsync" disabled="@IsRunning">Refresh</button>
+    </div>
+    <div class="card-body">
+        @if (_runs is null)
+        {
+            <p class="text-muted mb-0">Loading...</p>
+        }
+        else if (_runs.Count == 0)
+        {
+            <p class="text-muted mb-0">No runs recorded.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Run</th>
+                            <th>Timestamp</th>
+                            <th>Status</th>
+                            <th>Seconds</th>
+                            <th>Metrics</th>
+                            <th>Upserted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var run in _runs)
+                        {
+                            <tr>
+                                <td>@run.RunId</td>
+                                <td>@run.RunTimestamp</td>
+                                <td><span class="badge @RunBadge(run.Status)">@run.Status</span></td>
+                                <td>@run.ExecutionSeconds.ToString("F2")</td>
+                                <td>@run.MetricsExtracted</td>
+                                <td>@run.ObservationsUpserted</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private const int MaxLogLines = 300;
+    private readonly List<LogEntry> _logs = new();
+    private IReadOnlyList<MetricItem> _metrics = Array.Empty<MetricItem>();
+    private IReadOnlyList<RunSummary>? _runs;
+    private JobStatus? _status;
+    private string[] _selectedMetrics = Array.Empty<string>();
+    private bool _loadToDb = true;
+    private bool _reembed;
+    private bool _rendered;
+    private bool _cancelPending;
+    private string? _softError;
+    private long _lastSequence;
+    private string? _logJobId;
+    private CancellationTokenSource? _pollCts;
+
+    private bool IsRunning => _status?.State == JobState.Running;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMetricsAsync();
+        await LoadRunsAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || _rendered)
+        {
+            return;
+        }
+
+        _rendered = true;
+        _pollCts = new CancellationTokenSource();
+        _ = PollLoopAsync(_pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var status = await Http.GetFromJsonAsync<JobStatus>("api/jobs/current", cancellationToken);
+                if (status is not null)
+                {
+                    _status = status;
+                    if (!string.IsNullOrEmpty(status.JobId) && status.JobId != _logJobId)
+                    {
+                        _logJobId = status.JobId;
+                        _lastSequence = 0;
+                        _logs.Clear();
+                    }
+
+                    if (!string.IsNullOrEmpty(status.JobId))
+                    {
+                        var fresh = await Http.GetFromJsonAsync<List<LogEntry>>(
+                            $"api/jobs/{status.JobId}/log?since={_lastSequence}",
+                            cancellationToken) ?? new List<LogEntry>();
+                        if (fresh.Count > 0)
+                        {
+                            _logs.AddRange(fresh);
+                            _lastSequence = fresh[^1].Sequence;
+                            if (_logs.Count > MaxLogLines)
+                            {
+                                _logs.RemoveRange(0, _logs.Count - MaxLogLines);
+                            }
+                        }
+                    }
+
+                    _softError = null;
+                }
+
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _softError = $"Live updates unavailable: {ex.Message}";
+                await InvokeAsync(StateHasChanged);
+            }
+
+            try
+            {
+                await Task.Delay(750, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    private async Task LoadMetricsAsync()
+    {
+        try
+        {
+            _metrics = await Http.GetFromJsonAsync<IReadOnlyList<MetricItem>>("api/catalog/metrics")
+                ?? Array.Empty<MetricItem>();
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Could not load metrics: {ex.Message}";
+        }
+    }
+
+    private async Task LoadRunsAsync()
+    {
+        try
+        {
+            _runs = await Http.GetFromJsonAsync<IReadOnlyList<RunSummary>>("api/runs?limit=20");
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Could not load run history: {ex.Message}";
+        }
+    }
+
+    private void OnMetricsChanged(ChangeEventArgs args)
+    {
+        _selectedMetrics = args.Value as string[] ?? Array.Empty<string>();
+    }
+
+    private async Task StartAsync(JobKind kind)
+    {
+        if (IsRunning)
+        {
+            return;
+        }
+
+        var metrics = kind == JobKind.Extract && _selectedMetrics.Length > 0 ? _selectedMetrics : null;
+        var request = new JobRequest(kind, metrics, _loadToDb, _reembed);
+        try
+        {
+            using var response = await Http.PostAsJsonAsync("api/jobs", request);
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                _softError = "A job is already running.";
+            }
+            else
+            {
+                _softError = null;
+                response.EnsureSuccessStatusCode();
+            }
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Could not start job: {ex.Message}";
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        if (_status?.JobId is null || _cancelPending)
+        {
+            return;
+        }
+
+        _cancelPending = true;
+        try
+        {
+            using var response = await Http.PostAsync($"api/jobs/{_status.JobId}/cancel", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                _softError = "Cancel request was not accepted.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _softError = $"Cancel failed: {ex.Message}";
+        }
+        finally
+        {
+            _cancelPending = false;
+        }
+    }
+
+    private int ProgressPercent()
+    {
+        if (_status is null || _status.Total <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Clamp((int)Math.Round(_status.Current * 100.0 / _status.Total), 0, 100);
+    }
+
+    private static string StateBadge(JobState state) => state switch
+    {
+        JobState.Running => "bg-primary",
+        JobState.Succeeded => "bg-success",
+        JobState.Failed => "bg-danger",
+        JobState.Cancelled => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string RunBadge(string status) => status.ToUpperInvariant() switch
+    {
+        "SUCCESS" => "bg-success",
+        "FAILED" => "bg-danger",
+        "RUNNING" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    public void Dispose()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+    }
+}
