@@ -37,11 +37,11 @@
 
     @if (_series is null)
     {
-        <p><em>Loading series...</em></p>
+        <p class="empty-state">Loading series...</p>
     }
     else if (_series.Count == 0)
     {
-        <p class="text-muted">No observations found for this entity/metric combination.</p>
+        <p class="empty-state">No observations found for this entity/metric combination.</p>
     }
     else
     {
@@ -62,7 +62,7 @@
                             <td>@point.Period</td>
                             <td>@point.Value</td>
                             <td>@(point.Unit ?? "")</td>
-                            <td>@(point.PeriodStr ?? "")</td>
+                            <td class="mono">@(point.PeriodStr ?? "")</td>
                         </tr>
                     }
                 </tbody>
@@ -74,11 +74,11 @@
 
     @if (_snapshot is null)
     {
-        <p><em>Loading snapshot...</em></p>
+        <p class="empty-state">Loading snapshot...</p>
     }
     else if (_snapshot.Count == 0)
     {
-        <p class="text-muted">No latest snapshot found.</p>
+        <p class="empty-state">No latest snapshot found.</p>
     }
     else
     {

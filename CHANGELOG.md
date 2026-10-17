@@ -3,6 +3,32 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — 2026-10 — Web UI (W1–W5)
+
+### Added
+- `src/EconData.Web`: localhost-only Blazor Server app with Overview, Runner, Data,
+  Metrics, Entities, Runs, and Builder pages plus a Minimal API.
+- `JobService`/`PipelineJobExecutor`: single-concurrency pipeline jobs with live
+  progress, bounded in-memory log tail, cooperative cancel, and run history.
+- Optional `IProgress<PipelineProgress>` / `IProgress<VectorizeProgress>` hooks on
+  `PipelineRunner` and `Vectorizer`; per-batch embedding progress via
+  `IEmbedder.BatchSize`.
+- Analytics JSON endpoints (`/api/overview`, `coverage`, `series`, `snapshot`,
+  `entities`, `runs`) and `/api/catalog/metrics`.
+- Dashboard builder: GridStack 14 + ECharts 6 widgets (series/coverage/snapshot/runs),
+  drag/resize/add/edit/remove, layout persistence at `output/dashboards.json`
+  through `GET|PUT /api/dashboard/layout`.
+- Vendored Bootstrap/ECharts/GridStack assets under `wwwroot/vendor/` for offline use.
+- `tests/EconData.Web.Tests` (API, job service, layout store) and Core progress tests.
+- `docs/DEV_GUIDE.md` expanded with Web architecture, builder contract, asset
+  refresh, and troubleshooting.
+
+### Verification
+- `dotnet build` 0 warnings; **134 tests** green (111 Core + 23 Web);
+  `dotnet format --verify-no-changes` clean.
+- Live smoke: all pages return 200, catalog/jobs/layout endpoints respond, a Check
+  job completes, and layout GET/PUT round-trips.
+
 ## [2.0.0] — 2026-10 — Migrated to C#/.NET 10 + SQLite
 
 ### Changed (platform)

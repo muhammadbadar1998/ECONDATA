@@ -7,7 +7,11 @@
 
 @if (_coverage is null)
 {
-    <p><em>Loading...</em></p>
+    <p class="empty-state">Loading metric coverage...</p>
+}
+else if (_coverage.Count == 0)
+{
+    <p class="empty-state">No metrics with data yet. Run the extract job first.</p>
 }
 else
 {
@@ -35,7 +39,7 @@ else
                         <td>@row.Frequency</td>
                         <td>@row.BaseUnit</td>
                         <td>@row.EntityCount</td>
-                        <td>@row.ObservationCount</td>
+                        <td>@row.ObservationCount.ToString("N0")</td>
                         <td>
                             @if (row.MinPeriod != null && row.MaxPeriod != null)
                             {

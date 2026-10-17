@@ -58,3 +58,18 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+.empty-state {
+    text-align: center;
+    color: #6c757d;
+    padding: 2rem 1rem;
+}
+
+.stat-value {
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+    margin-bottom: 0;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

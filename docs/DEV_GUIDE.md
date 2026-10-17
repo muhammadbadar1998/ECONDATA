@@ -59,6 +59,98 @@ dotnet test EconData.slnx
 dotnet format EconData.slnx --verify-no-changes
 ```
 
+## Web app (`src/EconData.Web`)
+
+Blazor Server + Minimal API, localhost only:
+
+```bash
+dotnet run --project src/EconData.Web    # http://127.0.0.1:5000
+```
+
+| Project | Responsibility |
+| :--- | :--- |
+| `src/EconData.Core` | Config, extraction/transform/load, analytics, vector catalog, `PipelineRunner`, Serilog |
+| `src/EconData.Cli` | `init-db`, `check-db`, `extract`, `vectorize`, `chat` |
+| `src/EconData.Web` | Pages (`/`, `/runner`, `/data`, `/metrics`, `/entities`, `/runs`, `/builder`) + `/api/*` |
+| `tests/EconData.Tests` | Core unit + hermetic SQLite integration tests |
+| `tests/EconData.Web.Tests` | `WebApplicationFactory<Program>` API tests, `JobService` tests, layout store tests |
+
+`Directory.Build.props` enables nullable, analyzers, and
+`TreatWarningsAsErrors=true`; new `.cs` files need a trailing newline and a clean
+`dotnet format` run.
+
+### Web DI and services
+
+Singletons: `AppConfig`, `SqliteConnectionFactory`, `MetricsCatalog`, `EntitySeed`,
+`AnalyticsService`, `InMemoryLogSink`, `ISeriesSource` (`DBnomicsExtractor`),
+`IEmbedder` (`OllamaEmbedder`), `VectorStore`, `SchemaInitializer`,
+`IJobExecutor` (`PipelineJobExecutor`), `JobService`, and `DashboardLayoutStore`.
+
+`ISeriesSource` and `IEmbedder` each get their own `HttpClient` because both mutate
+timeouts/headers; the scoped UI `HttpClient` (based on `NavigationManager.BaseUri`)
+must not be reused by singletons.
+
+### Jobs
+
+- `IJobExecutor.ExecuteAsync(JobRequest, IProgress<JobProgressUpdate>, CancellationToken)`
+  is the test seam (`FakeJobExecutor` in Web tests).
+- `JobService` enforces single concurrency: `TryStart` returns `false` while a job
+  is running. State is guarded by one lock; `Snapshot()` returns deep copies.
+- `PipelineJobExecutor` runs `Check`, `Init`, `Extract`, `Vectorize`, and `RunAll`
+  (init → extract all with DB load → vectorize), mapping
+  `PipelineProgress`/`VectorizeProgress` into `JobProgressUpdate` and per-metric
+  step lines. Cancellation is cooperative (`Cancel(jobId)` → linked CTS).
+- `InMemoryLogSink` keeps the last 500 Serilog entries with a monotonic sequence;
+  `/runner` polls `/api/jobs/current` and `/api/jobs/{id}/log?since=N`.
+- `PipelineProgress`/`VectorizeProgress` hooks are optional parameters placed
+  before `CancellationToken`; keep existing positional callers working.
+
+### Dashboard builder
+
+Layouts persist to `output/dashboards.json`:
+
+```json
+{
+  "version": 1,
+  "widgets": [
+    {
+      "id": "w_series", "type": "series",
+      "title": "USA - GDP (current US$)",
+      "x": 0, "y": 0, "w": 6, "h": 3,
+      "config": { "entity": "USA", "metric": "gdp_usd", "category": null }
+    }
+  ]
+}
+```
+
+- Types: `series`, `coverage`, `snapshot`, `runs`; grid is 12 columns.
+- Validation: `x` 0–11, `y` 0–1000, `w`/`h` 1–12, ≤ 24 widgets, unique ids
+  (≤ 64 chars), title ≤ 120, config strings ≤ 64.
+- `DashboardLayoutStore.Load()` falls back to the four-widget default on missing,
+  corrupt, or invalid files. `SaveAsync` validates and writes atomically.
+- Endpoints: `GET|PUT /api/dashboard/layout`. See README for the full API table.
+- `wwwroot/js/dashboard.js` (ES module) owns GridStack/ECharts instances:
+  `initGrid`, `renderCharts`, `resizeCharts`, `disposeChart`, `dispose`.
+  Drag/resize is debounced into `[JSInvokable] OnLayoutChanged`; Blazor owns
+  widget state and debounce-saves the layout. Re-init is keyed to a structural
+  version counter, not every render.
+- Browser assets are vendored and tracked under `wwwroot/vendor/`:
+  Bootstrap 5.x, ECharts 6.1.0 (`echarts.min.js`), GridStack 14.0.0
+  (`gridstack-all.js` + `gridstack.min.css`) with licenses and
+  `vendor/README.md`. Refresh by re-downloading the pinned versions; never use a
+  CDN. (The old `wwwroot/lib/` tree is ignored by `.gitignore`, which is why the
+  assets live under `vendor/`.)
+
+### Web troubleshooting
+
+| Symptom | Fix |
+| :--- | :--- |
+| UI unstyled / charts missing | Verify `wwwroot/vendor/**` exists and `App.razor` uses the `vendor/` paths |
+| Dashboard resets to defaults | Check write access to `output/`; invalid/corrupt JSON intentionally falls back |
+| Job start returns `409` | Another job is running; wait or cancel it on `/runner` |
+| No live logs | Confirm the Serilog sink is registered before the logger in `Program.cs` |
+| Web tests hang on a job | Use `FakeJobExecutor` and always release/cancel blocked runs |
+
 The integration tests are hermetic: they run against a temporary SQLite file,
 including a real `sqlite-vec` kNN round-trip. `LiveChatIntegrationTests` (if run)
 additionally needs Ollama; the offline unit tests use a deterministic fake embedder.
