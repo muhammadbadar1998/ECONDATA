@@ -25,7 +25,7 @@ SQLite file (`output/econdata.db`) plus a vendored `sqlite-vec` extension.
 
 This project was developed AI-first: planning, implementation, review, and issue
 tracking were driven by an orchestrated set of AI agents rather than one long chat
-session. The workflow was deliberately cost-aware:
+session. The workflow was deliberately cost-aware and instruction-driven:
 
 - **Tiered model orchestration.** Model capability was matched to task complexity:
   faster, cheaper models handled scaffolding, docs, and mechanical edits, while
@@ -36,8 +36,16 @@ session. The workflow was deliberately cost-aware:
 - **Persistent working documents.** Planning, execution-progress, and issue-tracking
   files acted as a compact source of truth, so each session could resume with minimal
   context instead of re-reading the codebase.
-- **Human approval gates.** Plans and UAT criteria were reviewed before coding, which
-  kept scope tight and avoided expensive rework.
+- **Instruction-driven workflow.** A project instruction file defined a six-phase
+  loop for every change, which kept scope and code footprint small:
+  1. **Plan** — requirements, architecture, tests, and UAT criteria; pause for
+     explicit approval.
+  2. **Test first** — write unit/integration tests and UAT assertions before code.
+  3. **Implement** — the minimum production code needed to make tests pass.
+  4. **Shrink** — review the result and reduce complexity and footprint.
+  5. **Verify** — run tests and lint; fix root causes until everything is green.
+  6. **Commit & push** — conventional commit, push, and summarize changes, UAT
+     results, and the commit SHA.
 
 The entire build — planning, coding, tests, and documentation — cost **under $4** for
 **207.5M tokens** across **2,401 requests**.
