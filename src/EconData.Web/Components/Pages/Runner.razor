@@ -1,4 +1,5 @@
 @page "/runner"
+@rendermode InteractiveServer
 @using System.Net
 @using EconData.Web.Services
 @inject HttpClient Http
@@ -29,6 +30,7 @@
                 <button class="btn btn-primary" @onclick="() => StartAsync(JobKind.Check)" disabled="@IsRunning">Check DB</button>
                 <button class="btn btn-primary" @onclick="() => StartAsync(JobKind.Init)" disabled="@IsRunning">Init DB</button>
             </div>
+            <p class="text-muted small">Check DB verifies the schema (read-only). Init DB creates the schema and vector table (safe to re-run).</p>
         </div>
     </div>
     <div class="col-lg-6">

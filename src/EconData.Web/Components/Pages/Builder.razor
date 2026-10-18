@@ -1,4 +1,5 @@
 @page "/builder"
+@rendermode InteractiveServer
 @using System.Text.Json
 @using EconData.Web.Services
 @inject HttpClient Http
@@ -37,8 +38,8 @@
             <select class="form-select form-select-sm" @bind="_newType">
                 <option value="series">Series (line)</option>
                 <option value="coverage">Coverage (bar)</option>
-                <option value="snapshot">Snapshot (bar)</option>
-                <option value="runs">Runs (bar)</option>
+                <option value="snapshot">Latest value by metric (bar)</option>
+                <option value="runs">Pipeline run duration seconds (bar)</option>
             </select>
         </div>
         @if (_newType is "series" or "snapshot")
@@ -66,6 +67,7 @@
             </div>
         }
         <button class="btn btn-outline-primary" @onclick="AddWidgetAsync" disabled="@(_metrics.Count == 0)">Add widget</button>
+        <p class="text-muted small">Widgets autosave to <code>output/dashboards.json</code> and reload on reopen. Drag the header to move a card; drag the corner to resize.</p>
     </div>
 </div>
 
@@ -445,13 +447,13 @@ else
         var id = "w_" + Guid.NewGuid().ToString("N")[..8];
         var nextY = _layout.Widgets.Count == 0 ? 0 : _layout.Widgets.Max(widget => widget.Y + widget.H);
         var title = _newType switch
-        {
-            "series" => $"{_newEntity} - {_newMetric}",
-            "snapshot" => $"{_newEntity} - latest values",
-            "coverage" => "Observations by metric",
-            "runs" => "Execution seconds per run",
-            _ => "Widget"
-        };
+            {
+                "series" => $"{_newEntity} - {_newMetric}",
+                "snapshot" => $"{_newEntity} - latest values",
+                "coverage" => "Observations by metric",
+                "runs" => "Pipeline run duration (seconds)",
+                _ => "Widget"
+            };
         var widget = new DashboardWidget(
             id,
             _newType,

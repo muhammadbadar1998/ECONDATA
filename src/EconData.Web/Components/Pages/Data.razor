@@ -1,4 +1,5 @@
 @page "/data"
+@rendermode InteractiveServer
 @inject HttpClient Http
 
 <PageTitle>Data</PageTitle>
@@ -126,9 +127,23 @@
     private IReadOnlyList<SeriesPoint>? _series;
     private IReadOnlyList<LatestSnapshotRow>? _snapshot;
 
+    private bool _rendered;
+
     protected override async Task OnInitializedAsync()
     {
-        await LoadDropdownData();
+        // Defer the catalog fetches until the client circuit is connected so server-side
+        // prerender never issues an outbound HTTP call to an address it can't reach.
+        await Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_rendered)
+        {
+            _rendered = true;
+            await LoadDropdownData();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadDropdownData()
