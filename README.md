@@ -121,5 +121,6 @@ uses the real `sqlite-vec` extension; no network or Ollama is needed.
 - [`docs/DEV_GUIDE.md`](docs/DEV_GUIDE.md) — architecture, Web services, builder,
   configuration details, troubleshooting.
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — operational runbook.
-- [`EXPLAINER.md`](EXPLAINER.md) — metric/entity field reference and examples.
+- [`EXPLAINER.md`](EXPLAINER.md) — architecture and codebase explainer.
 - [`CHANGELOG.md`](CHANGELOG.md) — release history.
+
