@@ -32,6 +32,10 @@ public sealed record ChatToolValidation(
 /// <summary>Describes the fixed tool set the assistant may call for objective questions.</summary>
 public static class ChatTools
 {
+    // Must be declared before All: static field initializers run in declaration order,
+    // and All's initializer reads this field.
+    private static readonly JsonElement EmptySchema = Parse("{}");
+
     public static IReadOnlyList<ChatTool> All { get; } = new List<ChatTool>
     {
         new(
@@ -55,18 +59,16 @@ public static class ChatTools
                 ("entities", JsonValueKind.Array, "Entity codes to compare, e.g. [\"USA\", \"DEU\"].", required: true))),
         new(
             "rank_entities",
-            "Rank entities for one metric (e.g. highest population). Direction is asc or desc.",
+            "Rank entities for one metric. Use direction 'desc' for highest/top/most/largest and 'asc' for lowest/bottom/least/smallest.",
             ObjectSchema(
                 ("metric", JsonValueKind.String, "The metric code, e.g. population.", required: true),
-                ("direction", JsonValueKind.String, "asc or desc.", required: true),
+                ("direction", JsonValueKind.String, "Use 'desc' for highest or 'asc' for lowest.", required: true),
                 ("limit", JsonValueKind.Number, "How many results to return, default 10.", required: false))),
         new("list_metrics", "List available metrics in the catalog.", EmptySchema),
         new("list_entities", "List available entities in the catalog.", EmptySchema),
     };
 
     public static ChatTool? Find(string name) => All.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-
-    private static readonly JsonElement EmptySchema = Parse("{}");
 
     private static JsonElement ObjectSchema(params (string name, JsonValueKind type, string description, bool required)[] props)
     {
@@ -86,7 +88,10 @@ public static class ChatTools
             ["properties"] = properties,
             ["required"] = new JsonArray(requiredNames.Select(n => (JsonNode?)n).ToArray()),
         };
-        return doc.Deserialize<JsonElement>()!;
+        // Clone into a standalone document: a JsonElement tied to a node's backing
+        // document is not safe to serialize later (it throws InvalidOperationException).
+        using var parsed = JsonDocument.Parse(doc.ToJsonString());
+        return parsed.RootElement.Clone();
     }
 
     private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json)!;

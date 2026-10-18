@@ -96,6 +96,52 @@ public class AnalyticsServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetSeriesForEntities_ReturnsPointsForEachEntity()
+    {
+        var series = _analytics.GetSeriesForEntities("gdp_usd", new[] { "USA", "DEU" });
+
+        Assert.Equal(3, series.Count);
+        Assert.All(series, point => Assert.Equal("USA", point.EntityCode));
+    }
+
+    [Fact]
+    public void RankEntities_OrdersByValueExcludingAggregatesAndPlaceholders()
+    {
+        InsertEntityWithObservation("ZZAGG", "Test Aggregate", "aggregate", isAggregate: true, 9999);
+        // Unnamed placeholder rows (name == code) in the seed are World Bank aggregates.
+        InsertEntityWithObservation("ZPH", "ZPH", "country", isAggregate: false, 8888);
+
+        var descending = _analytics.RankEntities("gdp_usd", "desc", 10);
+        var ascending = _analytics.RankEntities("gdp_usd", "asc", 10);
+
+        Assert.Single(descending);
+        Assert.Equal("USA", descending[0].CountryCode);
+        Assert.Equal(300.0, descending[0].Value);
+        Assert.Equal("USA", ascending[0].CountryCode);
+        Assert.DoesNotContain(descending, row => row.CountryCode is "ZZAGG" or "ZPH");
+    }
+
+    private void InsertEntityWithObservation(string entityCode, string entityName, string entityType, bool isAggregate, double value)
+    {
+        using var connection = _factory.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO dbe_entities (entity_code, entity_name, entity_type, is_aggregate)
+            VALUES (@code, @name, @type, @aggregate);
+            INSERT INTO dbe_observations (metric_id, entity_id, source_id, start_date, end_date, val)
+            SELECT m.metric_id, e.entity_id, s.source_id, '2024-01-01', '2024-12-31', @value
+            FROM dbe_metrics m, dbe_entities e, dbe_sources s
+            WHERE m.metric_code = 'gdp_usd' AND e.entity_code = @code AND s.metric_id = m.metric_id;
+            """;
+        command.Parameters.AddWithValue("@code", entityCode);
+        command.Parameters.AddWithValue("@name", entityName);
+        command.Parameters.AddWithValue("@type", entityType);
+        command.Parameters.AddWithValue("@aggregate", isAggregate ? 1 : 0);
+        command.Parameters.AddWithValue("@value", value);
+        command.ExecuteNonQuery();
+    }
+
+    [Fact]
     public void GetLatestSnapshot_UsaGdpUsd_ReturnsLatestValue300()
     {
         var snapshot = _analytics.GetLatestSnapshot("USA", "gdp_usd", null, 10);

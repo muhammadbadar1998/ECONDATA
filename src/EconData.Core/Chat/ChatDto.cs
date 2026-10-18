@@ -12,4 +12,5 @@ public sealed record ChatTurnDto(string Role, string Content);
 public sealed record ChatResponse(
     string Answer,
     string Intent,
-    IReadOnlyList<string> Sources);
+    IReadOnlyList<string> Sources,
+    IReadOnlyList<string> ToolsUsed);

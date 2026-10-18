@@ -63,9 +63,7 @@ public sealed class LLMClient : IChatModel
         var payload = new Dictionary<string, object?>
         {
             ["model"] = Model,
-            ["messages"] = messages
-                .Select(message => (object?)new Dictionary<string, object?> { ["role"] = message.Role, ["content"] = message.Content })
-                .ToList(),
+            ["messages"] = messages.Select(BuildMessage).ToList(),
             ["temperature"] = Temperature,
             ["stream"] = false,
         };
@@ -76,6 +74,27 @@ public sealed class LLMClient : IChatModel
         }
 
         return payload;
+    }
+
+    private static Dictionary<string, object?> BuildMessage(ChatTurn message)
+    {
+        var serialized = new Dictionary<string, object?>
+        {
+            ["role"] = message.Role,
+            ["content"] = message.Content,
+        };
+
+        if (!string.IsNullOrEmpty(message.ToolCallId))
+        {
+            serialized["tool_call_id"] = message.ToolCallId;
+        }
+
+        if (message.ToolCalls is { } toolCalls)
+        {
+            serialized["tool_calls"] = toolCalls;
+        }
+
+        return serialized;
     }
 
     public async Task<bool> VerifyConnectivityAsync(CancellationToken cancellationToken = default)

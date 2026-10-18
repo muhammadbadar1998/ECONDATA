@@ -238,30 +238,32 @@ public sealed class AnalyticsService
     public IReadOnlyList<LatestSnapshotRow> RankEntities(string metric, string direction, int limit)
     {
         limit = Math.Clamp(limit, 1, 1000);
-        var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+        var order = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
         using var connection = _factory.OpenReadOnly();
-        var sqlBuilder = new System.Text.StringBuilder($"""
-            SELECT
-                country_code,
-                country_name,
-                metric_code,
-                metric_name,
-                category,
-                frequency,
-                base_unit,
-                value,
-                period
-            FROM v_latest_metrics_snapshot
-            WHERE metric_code = @metric
-            ORDER BY value {(desc ? "DESC" : "ASC")}
-            LIMIT @limit;
-            """);
-
-        var list = new List<LatestSnapshotRow>();
         using var command = connection.CreateCommand();
-        command.CommandText = sqlBuilder.ToString();
+        command.CommandText = $"""
+            SELECT
+                v.country_code,
+                v.country_name,
+                v.metric_code,
+                v.metric_name,
+                v.category,
+                v.frequency,
+                v.base_unit,
+                v.value,
+                v.period
+            FROM v_latest_metrics_snapshot v
+            JOIN dbe_entities e ON e.entity_code = v.country_code
+            WHERE v.metric_code = @metric
+              AND e.is_aggregate = 0
+              AND v.country_name <> v.country_code
+            ORDER BY v.value {order}
+            LIMIT @limit;
+            """;
         command.Parameters.AddWithValue("@metric", metric);
         command.Parameters.AddWithValue("@limit", limit);
+
+        var list = new List<LatestSnapshotRow>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {

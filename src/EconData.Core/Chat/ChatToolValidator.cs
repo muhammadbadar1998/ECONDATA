@@ -14,6 +14,10 @@ public static class ChatToolValidator
         }
 
         var args = arguments ?? JsonSerializer.Deserialize<JsonElement>("{}")!;
+        if (args.ValueKind != JsonValueKind.Object)
+        {
+            return new ChatToolValidation(false, null, $"Tool '{name}' arguments must be a JSON object.");
+        }
 
         return name switch
         {

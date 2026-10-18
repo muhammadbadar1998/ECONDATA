@@ -68,5 +68,15 @@ public class ChatToolValidatorTests
         }
     }
 
+    [Fact]
+    public void NonObjectArguments_FailGracefully()
+    {
+        // Some servers send arguments as a JSON string; the validator must not throw.
+        var result = ChatToolValidator.Validate("get_series", Parse("\"{\\\"entity\\\":\\\"USA\\\"}\""));
+
+        Assert.False(result.IsValid);
+        Assert.Contains("JSON object", result.Error);
+    }
+
     private static JsonElement Parse(string json) => JsonSerializer.Deserialize<JsonElement>(json)!;
 }

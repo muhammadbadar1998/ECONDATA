@@ -69,6 +69,7 @@ builder.Services.AddSingleton<IDocumentSearcher>(sp => new Vectorizer(
     sp.GetRequiredService<VectorStore>(),
     sp.GetRequiredService<IEmbedder>(),
     logger: logger));
+builder.Services.AddSingleton<IChatModel>(_ => new LLMClient(config, new HttpClient(), logger));
 builder.Services.AddSingleton<IRagAnswerer>(sp => new RagAnswerer(
     sp.GetRequiredService<IDocumentSearcher>(),
     sp.GetRequiredService<IChatModel>(),
@@ -160,8 +161,19 @@ app.MapPost("/api/chat", async (ChatRequest request, ChatOrchestrator orchestrat
     }
 
     var history = request.History?.Select(h => new ChatTurn(h.Role, h.Content)).ToList();
-    var result = await orchestrator.AnswerAsync(request.Question, history, cancellationToken).ConfigureAwait(false);
-    return Results.Ok(new ChatResponse(result.Text, result.Intent.ToString(), result.Sources));
+    try
+    {
+        var result = await orchestrator.AnswerAsync(request.Question, history, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(new ChatResponse(result.Text, result.Intent.ToString(), result.Sources, result.ToolsUsed));
+    }
+    catch (LLMException ex)
+    {
+        // The assistant backend (Ollama/OpenAI-compatible endpoint) is unreachable or
+        // misconfigured; report it instead of surfacing a 500 to the chat page.
+        return Results.Json(
+            new ChatResponse($"The assistant is unavailable right now. {ex.Message}", "error", Array.Empty<string>(), Array.Empty<string>()),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
 });
 
 app.MapRazorComponents<App>()

@@ -53,7 +53,7 @@ public sealed class ChatOrchestrator
         var trimmed = (question ?? string.Empty).Trim();
         if (trimmed.Length == 0)
         {
-            return new ChatResult(string.Empty, ChatIntent.Subjective, Array.Empty<string>());
+            return new ChatResult(string.Empty, ChatIntent.Subjective, Array.Empty<string>(), Array.Empty<string>());
         }
 
         var intent = await ClassifyIntentAsync(trimmed, cancellationToken).ConfigureAwait(false);
@@ -116,7 +116,7 @@ public sealed class ChatOrchestrator
     private async Task<ChatResult> AnswerSubjectiveAsync(string question, List<ChatTurn>? history, CancellationToken cancellationToken)
     {
         var (text, docs) = await _rag.AnswerAsync(question, history, cancellationToken).ConfigureAwait(false);
-        return new ChatResult(text, ChatIntent.Subjective, docs.Select(d => d.DocKey).ToList());
+        return new ChatResult(text, ChatIntent.Subjective, docs.Select(d => d.DocKey).ToList(), Array.Empty<string>());
     }
 
     private async Task<ChatResult> AnswerObjectiveAsync(string question, List<ChatTurn>? history, CancellationToken cancellationToken)
@@ -146,7 +146,8 @@ public sealed class ChatOrchestrator
             },
         }).ToList();
 
-        var toolsJson = JsonSerializer.SerializeToElement(new { tools });
+        var toolsJson = JsonSerializer.SerializeToElement(tools);
+        var toolsUsed = new List<string>();
 
         for (var iteration = 0; iteration < MaxToolIterations; iteration++)
         {
@@ -165,24 +166,33 @@ public sealed class ChatOrchestrator
                     history.Add(new ChatTurn("user", question));
                     history.Add(new ChatTurn("assistant", text));
                 }
-                return new ChatResult(text, ChatIntent.Objective, Array.Empty<string>());
+                return new ChatResult(text, ChatIntent.Objective, Array.Empty<string>(), toolsUsed);
             }
 
-            foreach (var call in toolCalls)
+            // Echo the assistant's tool calls back so the model can pair results with them.
+            if (message.TryGetProperty("tool_calls", out var rawCalls))
             {
-                var validation = ChatToolValidator.Validate(call.Name, call.Arguments);
-                if (!validation.IsValid || validation.Call is null)
-                {
-                    messages.Add(new ChatTurn("tool", $"Invalid call to {call.Name}: {validation.Error}"));
-                    continue;
-                }
+                messages.Add(new ChatTurn("assistant", ExtractContent(message), ToolCalls: rawCalls.Clone()));
+            }
 
-                var result = await DispatchAsync(validation.Call, cancellationToken).ConfigureAwait(false);
-                messages.Add(new ChatTurn("tool", result));
+            foreach (var call in toolCalls.Take(1))
+            {
+                toolsUsed.Add(call.Name);
+                var validation = ChatToolValidator.Validate(call.Name, call.Arguments);
+                var result = validation is { IsValid: true, Call: not null }
+                    ? await DispatchAsync(validation.Call, cancellationToken).ConfigureAwait(false)
+                    : $"Invalid call to {call.Name}: {validation.Error}";
+
+                _logger.Debug("Tool {Tool} returned {Length} character(s): {Preview}",
+                    call.Name,
+                    result.Length,
+                    result.Length > 400 ? result[..400] : result);
+
+                messages.Add(new ChatTurn("tool", result, ToolCallId: call.Id));
             }
         }
 
-        return new ChatResult("The model did not produce a final answer after several attempts.", ChatIntent.Objective, Array.Empty<string>());
+        return new ChatResult("The model did not produce a final answer after several attempts.", ChatIntent.Objective, Array.Empty<string>(), toolsUsed);
     }
 
     private async Task<string> DispatchAsync(ChatToolCall call, CancellationToken cancellationToken)
@@ -249,13 +259,7 @@ public sealed class ChatOrchestrator
         => _analytics.GetSeriesForEntities(metric, entities);
 
     private IReadOnlyList<LatestSnapshotRow> RankEntities(string metric, string direction, int limit)
-    {
-        var rows = _analytics.GetLatestSnapshot(null, metric, null, 1000);
-        var ordered = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase)
-            ? rows.OrderByDescending(r => r.Value)
-            : rows.OrderBy(r => r.Value);
-        return ordered.Take(limit).ToList();
-    }
+        => _analytics.RankEntities(metric, direction, limit);
 
     private static string FormatSeries(IReadOnlyList<SeriesPoint> points)
     {
@@ -263,7 +267,7 @@ public sealed class ChatOrchestrator
         {
             return "No data found for the requested entity/metric.";
         }
-        var lines = points.Select(p => $"{p.Period}: {p.Value:G} {p.Unit ?? string.Empty}".TrimEnd());
+        var lines = points.Select(p => $"{p.EntityCode} {p.Period}: {p.Value:G} {p.Unit ?? string.Empty}".TrimEnd());
         return string.Join("\n", lines);
     }
 
@@ -287,24 +291,57 @@ public sealed class ChatOrchestrator
         return string.Join("\n", list);
     }
 
-    private static List<ChatToolCall>? ExtractToolCalls(JsonElement message)
+    private static List<ModelToolCall>? ExtractToolCalls(JsonElement message)
     {
         if (!message.TryGetProperty("tool_calls", out var calls) || calls.ValueKind != JsonValueKind.Array)
         {
             return null;
         }
-        var result = new List<ChatToolCall>();
+        var result = new List<ModelToolCall>();
         foreach (var call in calls.EnumerateArray())
         {
+            var id = call.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() ?? string.Empty : string.Empty;
             var name = call.TryGetProperty("function", out var fn) && fn.TryGetProperty("name", out var n) ? n.GetString() : null;
-            var arguments = call.TryGetProperty("function", out var f2) && f2.TryGetProperty("arguments", out var a) ? a : JsonSerializer.Deserialize<JsonElement>("{}")!;
+            var arguments = call.TryGetProperty("function", out var f2) && f2.TryGetProperty("arguments", out var a)
+                ? ParseArguments(a)
+                : JsonSerializer.Deserialize<JsonElement>("{}");
             if (name is not null)
             {
-                result.Add(new ChatToolCall(name, arguments));
+                result.Add(new ModelToolCall(id, name, arguments));
             }
         }
         return result.Count > 0 ? result : null;
     }
+
+    /// <summary>
+    /// The OpenAI wire format encodes <c>arguments</c> as a JSON string; some servers
+    /// send an object. Accept both and fail soft to an empty object.
+    /// </summary>
+    private static JsonElement ParseArguments(JsonElement arguments)
+    {
+        if (arguments.ValueKind != JsonValueKind.String)
+        {
+            return arguments;
+        }
+
+        var raw = arguments.GetString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return JsonSerializer.Deserialize<JsonElement>("{}");
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(raw);
+            return document.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return JsonSerializer.Deserialize<JsonElement>("{}");
+        }
+    }
+
+    private sealed record ModelToolCall(string Id, string Name, JsonElement Arguments);
 
     private static string ExtractContent(JsonElement message)
     {
@@ -348,4 +385,4 @@ public sealed class ChatOrchestrator
 }
 
 /// <summary>The result of a chat turn.</summary>
-public sealed record ChatResult(string Text, ChatIntent Intent, IReadOnlyList<string> Sources);
+public sealed record ChatResult(string Text, ChatIntent Intent, IReadOnlyList<string> Sources, IReadOnlyList<string> ToolsUsed);

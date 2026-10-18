@@ -39,6 +39,10 @@
                     {
                         <span class="text-muted small">Sources: @string.Join(", ", turn.Sources)</span>
                     }
+                    @if (turn.ToolsUsed is not null && turn.ToolsUsed.Count > 0)
+                    {
+                        <span class="text-muted small">Tools: @string.Join(", ", turn.ToolsUsed)</span>
+                    }
                 }
                 <div class="@(turn.Role == "user" ? "bg-primary text-white rounded p-2 d-inline-block" : "bg-light rounded p-2 d-inline-block")">@turn.Content</div>
             </div>
@@ -97,14 +101,15 @@
             using var response = await Http.PostAsJsonAsync("/api/chat", new { question, history = _transcript.Select(t => new { t.Role, t.Content }).ToList() });
             if (!response.IsSuccessStatusCode)
             {
-                _error = $"Request failed ({(int)response.StatusCode}).";
+                var failure = await response.Content.ReadFromJsonAsync<ChatResponse>();
+                _error = failure?.Answer ?? $"Request failed ({(int)response.StatusCode}).";
             }
             else
             {
                 var result = await response.Content.ReadFromJsonAsync<ChatResponse>();
                 if (result is not null)
                 {
-                    _transcript.Add(new TranscriptTurn("assistant", result.Answer, result.Intent, result.Sources ?? Array.Empty<string>()));
+                    _transcript.Add(new TranscriptTurn("assistant", result.Answer, result.Intent, result.Sources ?? Array.Empty<string>(), result.ToolsUsed ?? Array.Empty<string>()));
                 }
             }
         }
@@ -119,5 +124,5 @@
         }
     }
 
-    private sealed record TranscriptTurn(string Role, string Content, string? Intent = null, IReadOnlyList<string>? Sources = null);
+    private sealed record TranscriptTurn(string Role, string Content, string? Intent = null, IReadOnlyList<string>? Sources = null, IReadOnlyList<string>? ToolsUsed = null);
 }
