@@ -21,6 +21,27 @@ SQLite file (`output/econdata.db`) plus a vendored `sqlite-vec` extension.
 - **Hermetic tests**: temporary SQLite databases, including a real `sqlite-vec`
   kNN round-trip.
 
+## How this was built (AI-first)
+
+This project was developed AI-first: planning, implementation, review, and issue
+tracking were driven by an orchestrated set of AI agents rather than one long chat
+session. The workflow was deliberately cost-aware:
+
+- **Tiered model orchestration.** Model capability was matched to task complexity:
+  faster, cheaper models handled scaffolding, docs, and mechanical edits, while
+  **DeepSeek Flash** was reserved for the hardest reasoning — schema design,
+  SQLite/`sqlite-vec` integration, Blazor concurrency, and deep debugging.
+- **Prompt caching.** Cached system prompts and project context kept long
+  implementation sessions cheap and consistent.
+- **Persistent working documents.** Planning, execution-progress, and issue-tracking
+  files acted as a compact source of truth, so each session could resume with minimal
+  context instead of re-reading the codebase.
+- **Human approval gates.** Plans and UAT criteria were reviewed before coding, which
+  kept scope tight and avoided expensive rework.
+
+The entire build — planning, coding, tests, and documentation — cost **under $4** for
+**207.5M tokens** across **2,401 requests**.
+
 ## Requirements
 
 - **.NET SDK 10** (`10.0.4xx`).
