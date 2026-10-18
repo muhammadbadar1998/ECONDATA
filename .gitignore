@@ -54,3 +54,7 @@ output/scratch/
 
 # Dashboard layout (W4)
 output/dashboards.json
+
+# Local agent/planning workspace
+.kilo/
+.kilocode/
