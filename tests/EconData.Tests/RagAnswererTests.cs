@@ -231,6 +231,9 @@ public class RagAnswererTests
             Messages.Add(messages);
             return Task.FromResult(Json("{\"role\":\"assistant\",\"content\":" + JsonSerializer.Serialize(_content) + "}"));
         }
+
+        public Task<JsonElement> ChatAsync(IReadOnlyList<ChatTurn> messages, JsonElement? tools, CancellationToken cancellationToken = default)
+            => ChatAsync(messages, cancellationToken);
     }
 
     private sealed class ThrowingChat : IChatModel
@@ -241,5 +244,8 @@ public class RagAnswererTests
 
         public Task<JsonElement> ChatAsync(IReadOnlyList<ChatTurn> messages, CancellationToken cancellationToken = default)
             => throw new LLMException("endpoint down");
+
+        public Task<JsonElement> ChatAsync(IReadOnlyList<ChatTurn> messages, JsonElement? tools, CancellationToken cancellationToken = default)
+            => ChatAsync(messages, cancellationToken);
     }
 }

@@ -10,4 +10,6 @@ public interface IChatModel
     Task<bool> VerifyConnectivityAsync(CancellationToken cancellationToken = default);
 
     Task<JsonElement> ChatAsync(IReadOnlyList<ChatTurn> messages, CancellationToken cancellationToken = default);
+
+    Task<JsonElement> ChatAsync(IReadOnlyList<ChatTurn> messages, JsonElement? tools, CancellationToken cancellationToken = default);
 }

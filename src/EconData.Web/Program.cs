@@ -1,12 +1,14 @@
 using EconData.Core.Ai;
 using EconData.Core.Analytics;
 using EconData.Core.Catalog;
+using EconData.Core.Chat;
 using EconData.Core.Cli;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
 using EconData.Core.Extraction;
 using EconData.Core.Logging;
+using EconData.Core.Rag;
 using EconData.Web.Components;
 using EconData.Web.Services;
 using Microsoft.AspNetCore.Components;
@@ -59,6 +61,25 @@ builder.Services.AddSingleton<IJobExecutor>(sp => new PipelineJobExecutor(
 builder.Services.AddSingleton<JobService>();
 builder.Services.AddSingleton(_ => new DashboardLayoutStore(
     Path.Combine(CliPaths.Resolve(root, config.OutputDir), "dashboards.json")));
+
+builder.Services.AddSingleton<IDocumentSearcher>(sp => new Vectorizer(
+    sp.GetRequiredService<MetricsCatalog>(),
+    sp.GetRequiredService<EntitySeed>(),
+    sp.GetRequiredService<SqliteConnectionFactory>(),
+    sp.GetRequiredService<VectorStore>(),
+    sp.GetRequiredService<IEmbedder>(),
+    logger: logger));
+builder.Services.AddSingleton<IRagAnswerer>(sp => new RagAnswerer(
+    sp.GetRequiredService<IDocumentSearcher>(),
+    sp.GetRequiredService<IChatModel>(),
+    k: config.RagTopK));
+builder.Services.AddSingleton<ChatOrchestrator>(sp => new ChatOrchestrator(
+    sp.GetRequiredService<IChatModel>(),
+    sp.GetRequiredService<IRagAnswerer>(),
+    sp.GetRequiredService<AnalyticsService>(),
+    sp.GetRequiredService<MetricsCatalog>(),
+    sp.GetRequiredService<EntitySeed>(),
+    logger));
 builder.Services.AddScoped(sp => new HttpClient
 {
     BaseAddress = new Uri(sp.GetRequiredService<NavigationManager>().BaseUri),
@@ -129,6 +150,18 @@ app.MapPut("/api/dashboard/layout", async (DashboardLayout? layout, DashboardLay
 
     await store.SaveAsync(layout!);
     return Results.NoContent();
+});
+
+app.MapPost("/api/chat", async (ChatRequest request, ChatOrchestrator orchestrator, CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Question))
+    {
+        return Results.BadRequest(new { error = "question is required" });
+    }
+
+    var history = request.History?.Select(h => new ChatTurn(h.Role, h.Content)).ToList();
+    var result = await orchestrator.AnswerAsync(request.Question, history, cancellationToken).ConfigureAwait(false);
+    return Results.Ok(new ChatResponse(result.Text, result.Intent.ToString(), result.Sources));
 });
 
 app.MapRazorComponents<App>()

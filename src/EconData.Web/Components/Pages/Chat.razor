@@ -1,0 +1,123 @@
+@page "/chat"
+@rendermode InteractiveServer
+@using EconData.Core.Chat
+@inject HttpClient Http
+
+<PageTitle>Chat</PageTitle>
+
+<h1>Chat</h1>
+
+<p class="text-muted">Ask about the economic catalog. Objective questions are answered exactly from the catalog; subjective ones are answered from the retrieved documents.</p>
+
+@if (_status == ChatStatus.Loading)
+{
+    <p class="text-muted">Thinking...</p>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        @foreach (var turn in _transcript)
+        {
+            <div class="@(turn.Role == "user" ? "text-end mb-2" : "mb-2")">
+                @if (turn.Role == "user")
+                {
+                    <span class="badge bg-primary text-white">You</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary text-white">Assistant</span>
+                    @if (!string.IsNullOrEmpty(turn.Intent))
+                    {
+                        <span class="badge @(turn.Intent == "objective" ? "bg-info" : "bg-success")">@turn.Intent</span>
+                    }
+                    @if (turn.Sources is not null && turn.Sources.Count > 0)
+                    {
+                        <span class="text-muted small">Sources: @string.Join(", ", turn.Sources)</span>
+                    }
+                }
+                <div class="@(turn.Role == "user" ? "bg-primary text-white rounded p-2 d-inline-block" : "bg-light rounded p-2 d-inline-block")">@turn.Content</div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body d-flex gap-2">
+        <input id="question" class="form-control flex-fill"
+               @bind="_question" @bind:event="oninput"
+               placeholder="e.g. What is the latest US GDP? or What is GDP?"
+               @onkeypress="HandleKeyPress" />
+        <button class="btn btn-primary" @onclick="AskAsync" disabled="@(_isAsking || string.IsNullOrWhiteSpace(_question))">
+            @(_isAsking ? "Asking..." : "Ask")
+        </button>
+    </div>
+</div>
+
+@code {
+    private enum ChatStatus { Idle, Loading }
+
+    private ChatStatus _status = ChatStatus.Idle;
+    private string _question = string.Empty;
+    private string? _error;
+    private bool _isAsking;
+    private readonly List<TranscriptTurn> _transcript = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _transcript.Add(new TranscriptTurn("assistant", "Ask me about the catalog — e.g. \"What is the latest US GDP?\" or \"What is GDP?\"", "subjective", Array.Empty<string>()));
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !_isAsking && !string.IsNullOrWhiteSpace(_question))
+        {
+            await AskAsync();
+        }
+    }
+
+    private async Task AskAsync()
+    {
+        if (_isAsking || string.IsNullOrWhiteSpace(_question)) return;
+
+        var question = _question.Trim();
+        _question = string.Empty;
+        _isAsking = true;
+        _status = ChatStatus.Loading;
+        _error = null;
+
+        _transcript.Add(new TranscriptTurn("user", question));
+
+        try
+        {
+            using var response = await Http.PostAsJsonAsync("/api/chat", new { question, history = _transcript.Select(t => new { t.Role, t.Content }).ToList() });
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = $"Request failed ({(int)response.StatusCode}).";
+            }
+            else
+            {
+                var result = await response.Content.ReadFromJsonAsync<ChatResponse>();
+                if (result is not null)
+                {
+                    _transcript.Add(new TranscriptTurn("assistant", result.Answer, result.Intent, result.Sources ?? Array.Empty<string>()));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isAsking = false;
+            _status = ChatStatus.Idle;
+        }
+    }
+
+    private sealed record TranscriptTurn(string Role, string Content, string? Intent = null, IReadOnlyList<string>? Sources = null);
+}

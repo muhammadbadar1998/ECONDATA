@@ -126,6 +126,46 @@ public sealed class AnalyticsService
         return list;
     }
 
+    public IReadOnlyList<SeriesPoint> GetSeriesForEntities(string metric, IReadOnlyList<string> entities)
+    {
+        var list = new List<SeriesPoint>();
+        using var connection = _factory.OpenReadOnly();
+        const string sql = """
+            SELECT
+                e.entity_code,
+                m.metric_code,
+                o.start_date,
+                o.val,
+                o.unit,
+                o.period_str
+            FROM dbe_observations o
+            JOIN dbe_entities e ON o.entity_id = e.entity_id
+            JOIN dbe_metrics m ON o.metric_id = m.metric_id
+            WHERE m.metric_code = @metric AND e.entity_code = @entity
+            ORDER BY e.entity_code, o.start_date;
+            """;
+
+        foreach (var entity in entities)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@metric", metric);
+            command.Parameters.AddWithValue("@entity", entity);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                list.Add(new SeriesPoint(
+                    EntityCode: reader.GetString(0),
+                    MetricCode: reader.GetString(1),
+                    Period: reader.GetString(2),
+                    Value: reader.GetDouble(3),
+                    Unit: reader.IsDBNull(4) ? null : reader.GetString(4),
+                    PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5)));
+            }
+        }
+        return list;
+    }
+
     public IReadOnlyList<LatestSnapshotRow> GetLatestSnapshot(string? entity, string? metric, string? category, int limit)
     {
         limit = Math.Clamp(limit, 1, 1000);
@@ -178,6 +218,50 @@ public sealed class AnalyticsService
         }
         command.Parameters.AddWithValue("@limit", limit);
 
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new LatestSnapshotRow(
+                CountryCode: reader.GetString(0),
+                CountryName: reader.GetString(1),
+                MetricCode: reader.GetString(2),
+                MetricName: reader.GetString(3),
+                Category: reader.GetString(4),
+                Frequency: reader.GetString(5),
+                BaseUnit: reader.GetString(6),
+                Value: reader.GetDouble(7),
+                Period: reader.GetString(8)));
+        }
+        return list;
+    }
+
+    public IReadOnlyList<LatestSnapshotRow> RankEntities(string metric, string direction, int limit)
+    {
+        limit = Math.Clamp(limit, 1, 1000);
+        var desc = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase);
+        using var connection = _factory.OpenReadOnly();
+        var sqlBuilder = new System.Text.StringBuilder($"""
+            SELECT
+                country_code,
+                country_name,
+                metric_code,
+                metric_name,
+                category,
+                frequency,
+                base_unit,
+                value,
+                period
+            FROM v_latest_metrics_snapshot
+            WHERE metric_code = @metric
+            ORDER BY value {(desc ? "DESC" : "ASC")}
+            LIMIT @limit;
+            """);
+
+        var list = new List<LatestSnapshotRow>();
+        using var command = connection.CreateCommand();
+        command.CommandText = sqlBuilder.ToString();
+        command.Parameters.AddWithValue("@metric", metric);
+        command.Parameters.AddWithValue("@limit", limit);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
