@@ -3,6 +3,26 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `doctor` CLI command: read-only readiness check (runtime, config, DB presence,
+  SQLite integrity, schema/view descriptor, sqlite-vec load, Ollama and LLM
+  reachability). Exits non-zero only on blockers.
+- `native/sqlite-vec/linux-x64/vec0.so` (sqlite-vec v0.1.9) so the vector layer
+  runs on Linux without manual setup.
+- `PipelineSummary.FailedMetrics` and run status `PARTIAL`/`FAILED` so a run with
+  failed metrics is no longer recorded as `SUCCESS`; CLI exits 1 and the Web job
+  fails.
+
+### Changed
+- `v_latest_metrics_snapshot` no longer coerces missing values to `0`; views are
+  dropped and recreated on `init-db` so existing databases pick up the change.
+- Database verification (`check-db`, the Web `Check` job, and `doctor`) is now
+  read-only: it no longer creates a missing database or switches its journal
+  mode, and a missing or corrupt database is reported as a failure instead of
+  success.
+
 ## [2.1.0] — 2026-10 — Web UI (W1–W5)
 
 ### Added

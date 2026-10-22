@@ -55,6 +55,8 @@ output/scratch/
 # Dashboard layout (W4)
 output/dashboards.json
 
-# Local agent/planning workspace
-.kilo/
+# Local agent workspace
 .kilocode/
+
+# Kilo project instructions are committed; only the scratch working docs are local
+.kilo/work/

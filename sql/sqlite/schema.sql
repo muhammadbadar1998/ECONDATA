@@ -150,6 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_hash ON dbe_embeddings(doc_hash);
 CREATE INDEX IF NOT EXISTS idx_dbe_embeddings_model ON dbe_embeddings(embedding_model);
 
 -- Latest metrics snapshot (long format)
+DROP VIEW IF EXISTS v_latest_metrics_snapshot;
 CREATE VIEW IF NOT EXISTS v_latest_metrics_snapshot AS
 SELECT
     e.entity_code AS country_code,
@@ -159,7 +160,7 @@ SELECT
     m.category,
     m.frequency,
     m.base_unit,
-    COALESCE(lo.val, 0) AS value,
+    lo.val AS value,
     lo.start_date AS period,
     date('now') AS snapshot_date
 FROM dbe_entities e
@@ -175,6 +176,7 @@ JOIN (
 WHERE e.is_active = 1;
 
 -- Dated execution snapshot (full history)
+DROP VIEW IF EXISTS v_dated_execution_snapshot;
 CREATE VIEW IF NOT EXISTS v_dated_execution_snapshot AS
 SELECT
     e.entity_code AS country_code,

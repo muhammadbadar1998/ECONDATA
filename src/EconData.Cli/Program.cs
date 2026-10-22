@@ -4,6 +4,7 @@ using EconData.Core.Cli;
 using EconData.Core.Cli.Chat;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
+using EconData.Core.Diagnostics;
 using EconData.Core.Entities;
 using EconData.Core.Extraction;
 using EconData.Core.Logging;
@@ -39,6 +40,7 @@ internal static class Program
             {
                 "init-db" => InitDb(config, root, options, logger),
                 "check-db" => CheckDb(config, root, logger),
+                "doctor" => await DoctorAsync(config, root, logger).ConfigureAwait(false),
                 "extract" => await ExtractAsync(config, root, options, logger).ConfigureAwait(false),
                 "vectorize" => await VectorizeAsync(config, root, options, logger).ConfigureAwait(false),
                 "chat" => await ChatAsync(config, root, options, logger).ConfigureAwait(false),
@@ -75,6 +77,36 @@ internal static class Program
         return ok ? 0 : 1;
     }
 
+    private static async Task<int> DoctorAsync(AppConfig config, string root, ILogger logger)
+    {
+        var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+
+        using var http = new HttpClient();
+        var embedder = new OllamaEmbedder(config, http, logger);
+        var llm = new LLMClient(config, http, logger);
+
+        var service = new DiagnosticsService(
+            config,
+            factory,
+            logger,
+            embedder,
+            ct => llm.VerifyConnectivityAsync(ct));
+
+        var report = await service.RunAsync(CancellationToken.None).ConfigureAwait(false);
+
+        foreach (var check in report.Checks)
+        {
+            Console.WriteLine($"{check.Diagnosis.ToString().ToUpperInvariant(),-7} {check.Name,-10} {check.Detail}");
+        }
+
+        var pass = report.Checks.Count(c => c.Diagnosis == Diagnosis.Pass);
+        var warn = report.Checks.Count(c => c.Diagnosis == Diagnosis.Warn);
+        var block = report.Checks.Count(c => c.Diagnosis == Diagnosis.Blocker);
+        Console.WriteLine($"Summary: {pass} pass, {warn} warn, {block} blocker.");
+
+        return report.HasBlockers ? 1 : 0;
+    }
+
     private static async Task<int> ExtractAsync(AppConfig config, string root, Arguments options, ILogger logger)
     {
         var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
@@ -101,6 +133,11 @@ internal static class Program
         var summary = await runner.RunAsync(metrics, options.Has("db")).ConfigureAwait(false);
         Console.WriteLine(
             $"Extraction complete: {summary.TotalObservations} observations, {summary.ObservationsUpserted} upserted in {summary.ExecutionSeconds:F2}s.");
+        if (summary.FailedMetrics.Count > 0)
+        {
+            Console.Error.WriteLine($"Failed metrics: {string.Join(", ", summary.FailedMetrics)}");
+            return 1;
+        }
         return 0;
     }
 
@@ -218,6 +255,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("  init-db                          Create the SQLite dbe_* schema and exit");
         Console.WriteLine("  check-db                         Verify the SQLite schema integrity and exit");
+        Console.WriteLine("  doctor                           Readiness check (SDK, DB, schema, sqlite-vec, Ollama, LLM)");
         Console.WriteLine("  extract [--metrics all|a,b] [--db]   Run the extract/transform/load pipeline");
         Console.WriteLine("  vectorize [--reembed] [--recent-points N]   Build/refresh the semantic catalog");
         Console.WriteLine("  chat [--question Q] [--k N] [--show-sources] [--system FILE]   Ask the catalog");

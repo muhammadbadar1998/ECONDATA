@@ -66,10 +66,16 @@ public sealed class PipelineJobExecutor : IJobExecutor
         try
         {
             var ok = _schemaInitializer.Verify(out var msg);
-            progress.Report(new JobProgressUpdate("check", ok ? "Schema verification passed" : "Schema verification warnings", 1, 1));
-            return Task.FromResult(new JobResult(ok ? "Schema verification passed" : "Schema verification completed with warnings"));
+            if (!ok)
+            {
+                progress.Report(new JobProgressUpdate("check", $"Schema verification failed: {msg}", 1, 1));
+                throw new InvalidOperationException(msg);
+            }
+
+            progress.Report(new JobProgressUpdate("check", "Schema verification passed", 1, 1));
+            return Task.FromResult(new JobResult("Schema verification passed"));
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             progress.Report(new JobProgressUpdate("check", $"Schema verification failed: {ex.Message}", 1, 1));
             throw;
@@ -128,7 +134,11 @@ public sealed class PipelineJobExecutor : IJobExecutor
                 p.ElapsedSeconds,
                 p.Kind == PipelineProgressKind.MetricStarted ? "running" : "done"));
         });
-        await runner.RunAsync(metrics, request.LoadToDb, adapter, cancellationToken).ConfigureAwait(false);
+        var summary = await runner.RunAsync(metrics, request.LoadToDb, adapter, cancellationToken).ConfigureAwait(false);
+        if (summary.FailedMetrics.Count > 0)
+        {
+            throw new InvalidOperationException($"Extraction failed for: {string.Join(", ", summary.FailedMetrics)}");
+        }
         return new JobResult($"Extraction completed for {metrics.Count} metric(s)");
     }
 

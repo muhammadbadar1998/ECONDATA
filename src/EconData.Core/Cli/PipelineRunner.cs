@@ -9,7 +9,10 @@ using Serilog;
 namespace EconData.Core.Cli;
 
 /// <summary>Result counters for one pipeline run.</summary>
-public sealed record PipelineSummary(int TotalObservations, int ObservationsUpserted, double ExecutionSeconds);
+public sealed record PipelineSummary(int TotalObservations, int ObservationsUpserted, double ExecutionSeconds, IReadOnlyList<string> FailedMetrics)
+{
+    public bool Succeeded => FailedMetrics.Count == 0;
+}
 
 /// <summary>Runs the normalized extraction → transform → load pipeline (port of the Python orchestrator).</summary>
 public sealed class PipelineRunner
@@ -97,6 +100,7 @@ public sealed class PipelineRunner
         var totalObservations = 0;
         var observationsUpserted = 0;
         var providers = new HashSet<string>(StringComparer.Ordinal);
+        var failedMetrics = new List<string>();
 
         for (var index = 0; index < metricsToRun.Count; index++)
         {
@@ -168,6 +172,7 @@ public sealed class PipelineRunner
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _logger.Error(ex, "Error extracting metric '{Metric}'.", metricCode);
+                failedMetrics.Add(metricCode);
                 progress?.Report(new PipelineProgress(
                     PipelineProgressKind.MetricCompleted,
                     metricCode,
@@ -190,7 +195,8 @@ public sealed class PipelineRunner
                 observationsSkipped: totalObservations - observationsUpserted,
                 providers: providers.ToList(),
                 sourceIds: sourceIds.Values.ToList(),
-                status: "SUCCESS",
+                status: failedMetrics.Count == 0 ? "SUCCESS"
+                : failedMetrics.Count == metricsToRun.Count ? "FAILED" : "PARTIAL",
                 executionSeconds: elapsed);
         }
 
@@ -203,6 +209,6 @@ public sealed class PipelineRunner
             observationsUpserted,
             elapsed));
 
-        return new PipelineSummary(totalObservations, observationsUpserted, elapsed);
+        return new PipelineSummary(totalObservations, observationsUpserted, elapsed, failedMetrics);
     }
 }

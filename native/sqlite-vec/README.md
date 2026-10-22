@@ -15,5 +15,6 @@ Layout: `native/sqlite-vec/<rid>/<library>`
 | osx-arm64 | `vec0.dylib` | `sqlite-vec-0.1.9-loadable-macos-aarch64.tar.gz`       |
 
 The app resolves the path from `ECONDATA_SQLITE_VEC_PATH`, defaulting to the
-current platform's RID directory. Only `win-x64` is vendored in this repo today;
-add other RID directories from the matching release asset when needed.
+current platform's RID directory. `win-x64` and `linux-x64` are vendored in this repo
+today (sqlite-vec v0.1.9); add other RID directories from the matching release asset
+when needed.

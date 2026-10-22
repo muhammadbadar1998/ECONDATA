@@ -12,6 +12,7 @@ Global Economic Data Extraction Pipeline.
 | Build | `dotnet build EconData.slnx` |
 | Init SQLite schema | `dotnet run --project src/EconData.Cli -- init-db` |
 | Check schema | `dotnet run --project src/EconData.Cli -- check-db` |
+| Readiness check | `dotnet run --project src/EconData.Cli -- doctor` |
 | Full pipeline into SQLite | `dotnet run --project src/EconData.Cli -- extract --metrics all --db` |
 | Vectorize catalog | `dotnet run --project src/EconData.Cli -- vectorize` |
 | Ask a question | `dotnet run --project src/EconData.Cli -- chat --question "..."` |

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "instructions": ["AGENTS.md", ".kilo/WORKFLOW.md"],
+  "model": "kilo/anthropic/claude-sonnet-5.5",
+  "small_model": "kilo/google/gemini-3.5-flash-lite"
+}

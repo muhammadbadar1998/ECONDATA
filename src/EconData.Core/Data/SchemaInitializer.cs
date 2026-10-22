@@ -47,9 +47,15 @@ public sealed class SchemaInitializer
 
     public bool Verify(out string message)
     {
+        if (!File.Exists(_factory.DatabasePath))
+        {
+            message = $"database file not found: {_factory.DatabasePath}";
+            return false;
+        }
+
         try
         {
-            using var connection = _factory.Open();
+            using var connection = _factory.OpenReadOnly();
             using var command = connection.CreateCommand();
 
             command.CommandText = "PRAGMA integrity_check;";
