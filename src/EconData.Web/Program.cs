@@ -102,10 +102,14 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapGet("/api/overview", (AnalyticsService analytics) =>
+app.MapGet("/api/overview", (AnalyticsService analytics, SqliteConnectionFactory db) =>
 {
-    try { return Results.Ok(analytics.GetOverview()); }
-    catch (Microsoft.Data.Sqlite.SqliteException) { return Results.Json(new { error = "database not initialized" }, statusCode: StatusCodes.Status503ServiceUnavailable); }
+    if (!File.Exists(db.DatabasePath))
+    {
+        return Results.Json(new { error = "database not initialized" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(analytics.GetOverview());
 });
 app.MapGet("/api/coverage", (AnalyticsService analytics) => Results.Ok(analytics.GetMetricCoverage()));
 app.MapGet("/api/series", (AnalyticsService analytics, string entity, string metric) => Results.Ok(analytics.GetSeries(entity, metric)));
