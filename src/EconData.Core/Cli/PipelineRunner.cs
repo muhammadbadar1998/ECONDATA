@@ -10,8 +10,12 @@ using Serilog;
 namespace EconData.Core.Cli;
 
 /// <summary>Result counters for one pipeline run.</summary>
-public sealed record PipelineSummary(int TotalObservations, int ObservationsUpserted, double ExecutionSeconds, IReadOnlyList<string> FailedMetrics)
+public sealed record PipelineSummary(int TotalObservations, int ObservationsUpserted, double ExecutionSeconds, IReadOnlyList<MetricOutcome> Outcomes)
 {
+    public IReadOnlyList<string> FailedMetrics => Outcomes
+        .Where(o => o.Outcome == PipelineOutcome.Failed)
+        .Select(o => o.MetricCode)
+        .ToList();
     public bool Succeeded => FailedMetrics.Count == 0;
 }
 
@@ -105,6 +109,7 @@ public sealed class PipelineRunner
         var observationsUpserted = 0;
         var providers = new HashSet<string>(StringComparer.Ordinal);
         var failedMetrics = new List<string>();
+        var outcomes = new List<MetricOutcome>();
 
         for (var index = 0; index < metricsToRun.Count; index++)
         {
@@ -113,6 +118,7 @@ public sealed class PipelineRunner
             if (metric is null)
             {
                 _logger.Warning("Metric code '{Metric}' not defined in the catalog. Skipping.", metricCode);
+                outcomes.Add(new MetricOutcome(metricCode, PipelineOutcome.Skipped, 0, "not in catalog"));
                 continue;
             }
 
@@ -155,6 +161,8 @@ public sealed class PipelineRunner
                     }
                 }
 
+                outcomes.Add(new MetricOutcome(metricCode, PipelineOutcome.Succeeded, records.Count, null));
+
                 _logger.Information(
                     "--> [{Index}/{Count}] '{Metric}' done: {Records} observations{Upserted} in {Seconds:F2}s.",
                     index + 1,
@@ -177,6 +185,7 @@ public sealed class PipelineRunner
             {
                 _logger.Error(ex, "Error extracting metric '{Metric}'.", metricCode);
                 failedMetrics.Add(metricCode);
+                outcomes.Add(new MetricOutcome(metricCode, PipelineOutcome.Failed, 0, ex.Message));
                 progress?.Report(new PipelineProgress(
                     PipelineProgressKind.MetricCompleted,
                     metricCode,
@@ -211,6 +220,7 @@ public sealed class PipelineRunner
                     foreach (var code in optIn)
                     {
                         failedMetrics.Add($"aggregate:{code}");
+                        outcomes.Add(new MetricOutcome($"aggregate:{code}", PipelineOutcome.Failed, 0, "aggregation failed"));
                     }
                 }
             }
@@ -218,7 +228,7 @@ public sealed class PipelineRunner
             loader.LogPipelineRun(
                 dagId: "econdata_manual",
                 taskId: "run_pipeline",
-                metricsExtracted: metricsToRun.Count,
+                metricsExtracted: outcomes.Count(o => o.Outcome == PipelineOutcome.Succeeded),
                 observationsUpserted: observationsUpserted,
                 observationsSkipped: totalObservations - observationsUpserted,
                 providers: providers.ToList(),
@@ -237,6 +247,6 @@ public sealed class PipelineRunner
             observationsUpserted,
             elapsed));
 
-        return new PipelineSummary(totalObservations, observationsUpserted, elapsed, failedMetrics);
+        return new PipelineSummary(totalObservations, observationsUpserted, elapsed, outcomes);
     }
 }

@@ -126,4 +126,59 @@ public class PipelineRunnerTests : IDisposable
             => throw new InvalidOperationException("boom");
     }
 
+
+    [Fact]
+    public async Task MixedOutcomes_ProducePartialStatus()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var source = new FailingSource("gdp_growth");
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            source,
+            _logger);
+
+        var summary = await runner.RunAsync(new[] { "gdp_usd", "gdp_growth" }, loadToDb: true);
+
+        Assert.False(summary.Succeeded);
+        Assert.Contains("gdp_growth", summary.FailedMetrics);
+        Assert.Equal(2, summary.Outcomes.Count);
+        Assert.Contains(summary.Outcomes, o => o.MetricCode == "gdp_usd" && o.Outcome == PipelineOutcome.Succeeded);
+        Assert.Contains(summary.Outcomes, o => o.MetricCode == "gdp_growth" && o.Outcome == PipelineOutcome.Failed);
+        Assert.Equal(1, summary.Outcomes.Count(o => o.Outcome == PipelineOutcome.Succeeded));
+
+        using var connection = _factory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT status, metrics_extracted FROM dbe_pipeline_runs ORDER BY run_id DESC LIMIT 1;";
+        using var r = cmd.ExecuteReader(); r.Read();
+        Assert.Equal("PARTIAL", r.GetString(0));
+        Assert.Equal(1, r.GetInt32(1));
+    }
+
+    private sealed class FailingSource : ISeriesSource
+    {
+        private readonly string _failCode;
+        public FailingSource(string failCode) { _failCode = failCode; }
+        public Task<IReadOnlyList<RawSeries>> FetchMetricSeriesAsync(
+            string metricCode,
+            MetricsCatalog catalog,
+            int limit = 1000,
+            CancellationToken cancellationToken = default)
+        {
+            if (metricCode == _failCode)
+            {
+                throw new InvalidOperationException("boom");
+            }
+            var series = new RawSeries(
+                new Dictionary<string, string> { ["country"] = "USA" },
+                new[] { "2022", "2023", "2024" },
+                new[] { "100", "200", "300" },
+                "United States");
+            return Task.FromResult<IReadOnlyList<RawSeries>>(new[] { series });
+        }
+    }
+
 }

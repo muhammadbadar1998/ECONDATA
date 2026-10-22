@@ -257,3 +257,15 @@ directory from the matching sqlite-vec release asset (see `native/sqlite-vec/REA
 ## Derived aggregates
 
 Opt-in via the `aggregation` key in `config/metrics.json` (`sum`/`mean`, default `none`). Computed rows are stored in `dbe_derived_observations` and exposed through `v_observations_all` with `source_kind = "derived"`. Read paths (`/api/series`, `/api/snapshot`, `/api/coverage`) expose `source_kind` and separate derived counts.
+
+
+## Run status and `metrics_extracted`
+
+A pipeline run records `SUCCESS` only when every requested *known* metric succeeds.
+If any metric fails (extraction error or aggregation failure) the status is `PARTIAL`
+when at least one metric succeeded, or `FAILED` when none did. A metric that is skipped
+because it is not in the catalog is non-fatal and does not change the status.
+
+`dbe_pipeline_runs.metrics_extracted` counts metrics that were **successfully extracted**
+(not the number requested). `observations_skipped` is the row-level skip count (non-numeric
+or unparseable rows), distinct from metric-level skipped outcomes.
