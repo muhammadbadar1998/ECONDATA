@@ -40,6 +40,7 @@ internal static class Program
             {
                 "init-db" => InitDb(config, root, options, logger),
                 "check-db" => CheckDb(config, root, logger),
+                "backup" => BackupDb(config, root, options, logger),
                 "doctor" => await DoctorAsync(config, root, logger).ConfigureAwait(false),
                 "extract" => await ExtractAsync(config, root, options, logger).ConfigureAwait(false),
                 "vectorize" => await VectorizeAsync(config, root, options, logger).ConfigureAwait(false),
@@ -66,6 +67,48 @@ internal static class Program
 
         Console.WriteLine(ok ? "Database schema initialized." : "Database schema initialization failed.");
         return ok ? 0 : 1;
+    }
+
+    private static int BackupDb(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var sourcePath = CliPaths.Resolve(root, config.SqlitePath);
+        if (!File.Exists(sourcePath))
+        {
+            Console.Error.WriteLine($"Database not found: {sourcePath}");
+            return 1;
+        }
+
+        var destination = CliPaths.Resolve(root, options.Value("to", null) ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            Console.Error.WriteLine("Usage: backup --to <path>");
+            return 1;
+        }
+
+        var directory = Path.GetDirectoryName(Path.GetFullPath(destination));
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        // Open the source read-only (no query_only pragma) so VACUUM INTO may write the
+        // destination while the live database is never modified.
+        var sourceConnection = new SqliteConnectionStringBuilder
+        {
+            DataSource = sourcePath,
+            Mode = SqliteOpenMode.ReadOnly,
+        }.ToString();
+        using var connection = new SqliteConnection(sourceConnection);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        // VACUUM INTO produces a compact, consistent snapshot without needing the sqlite3 CLI.
+        command.CommandText = "VACUUM INTO @dest;";
+        command.Parameters.AddWithValue("@dest", Path.GetFullPath(destination));
+        command.ExecuteNonQuery();
+
+        logger.Information("Backup written to {Destination}.", destination);
+        Console.WriteLine($"Backup written to {destination}.");
+        return 0;
     }
 
     private static int CheckDb(AppConfig config, string root, ILogger logger)

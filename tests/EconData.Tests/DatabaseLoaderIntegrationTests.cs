@@ -102,6 +102,51 @@ public class DatabaseLoaderIntegrationTests : IDisposable
         }
     }
 
+    [Fact]
+    public void ChangedValueUpdatesRowInPlaceWithoutDuplicating()
+    {
+        Assert.True(_loader.VerifyOrInitSchema(), "schema init failed");
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        _loader.SeedEntities(seed.Entities, seed.Aliases);
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var metrics = DataTransformer.CreateMetricsRecords(catalog);
+        _loader.UpsertMetrics(metrics);
+        var (metricIdsBeforeSources, _) = _loader.GetMetricAndSourceIds();
+        _loader.UpsertSources(metrics, metricIdsBeforeSources);
+        var (metricIds, sourceIds) = _loader.GetMetricAndSourceIds();
+
+        var original = Observation("USA", "United States", 2024, 100.0);
+        _loader.UpsertObservations("gdp_usd", new[] { original }, metricIds["gdp_usd"], sourceIds["gdp_usd"]);
+        var firstExtracted = ReadText("SELECT extracted_at FROM dbe_observations WHERE metric_id=@m AND start_date='2024-01-01'", metricIds["gdp_usd"]);
+
+        var revised = original with
+        {
+            Val = 250.0,
+            RawVal = 250.0,
+            ExtractedAt = original.ExtractedAt.AddMinutes(5),
+        };
+        Assert.Equal(1, _loader.UpsertObservations("gdp_usd", new[] { revised }, metricIds["gdp_usd"], sourceIds["gdp_usd"]));
+
+        using var connection = _factory.Open();
+        Assert.Equal(1, ScalarLong(connection, "SELECT count(*) FROM dbe_observations WHERE metric_id=" + metricIds["gdp_usd"]));
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT val, extracted_at FROM dbe_observations WHERE metric_id=@m AND start_date='2024-01-01'";
+        cmd.Parameters.AddWithValue("@m", metricIds["gdp_usd"]);
+        using var reader = cmd.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(250.0, reader.GetDouble(0));
+        Assert.NotEqual(firstExtracted, reader.GetString(1));
+    }
+
+    private string ReadText(string sql, int metricId)
+    {
+        using var connection = _factory.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("@m", metricId);
+        return Convert.ToString(command.ExecuteScalar(), CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
     private static ObservationRecord Observation(string code, string name, int year, double value)
         => new(
             code,

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- `backup --to <path>` CLI command: consistent `VACUUM INTO` snapshot that needs no
+  external `sqlite3` binary.
 - Derived aggregates layer: opt-in `aggregation` key (`sum`/`mean`, default `none`) in
   `config/metrics.json` drives computed aggregate rows in `dbe_derived_observations`,
   exposed through the unified `v_observations_all` view; `AnalyticsService` read paths

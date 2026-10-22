@@ -15,7 +15,7 @@ SQLite file (`output/econdata.db`) plus a vendored `sqlite-vec` extension.
   typed dates, unit normalization, and bulk UPSERTs.
 - **Vector catalog**: embeds metric/entity/series summaries into `sqlite-vec`
   (768-dim cosine) and answers questions only from those documents.
-- **CLI**: `init-db`, `check-db`, `extract`, `vectorize`, `chat`.
+- **CLI**: `init-db`, `check-db`, `backup`, `doctor`, `extract`, `vectorize`, `chat`.
 - **Web UI**: Overview, Runner with live progress/logs/cancel, Data, Metrics,
   Entities, Runs, and a drag/resize dashboard builder (ECharts + GridStack).
 - **Hermetic tests**: temporary SQLite databases, including a real `sqlite-vec`

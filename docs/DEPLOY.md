@@ -92,26 +92,124 @@ actionable message if the embedding or chat backend is unreachable.
 
 ## Scheduling
 
-Schedule the CLI directly (cron, Task Scheduler, systemd timer). Example daily at 04:00:
+Schedule the CLI directly. The pipeline is idempotent, so re-runs are safe.
+**Always alert on a non-zero exit** — `extract` returns 1 when any metric fails
+(status `PARTIAL`/`FAILED`) and 1 when no valid metric resolves.
+
+### cron
 
 ```
-0 4 * * * cd /opt/econdata && dotnet run --project src/EconData.Cli -c Release -- extract --metrics all --db >> output/pipeline.cron.log 2>&1
+0 4 * * * cd /opt/econdata && dotnet run --project src/EconData.Cli -c Release -- extract --metrics all --db >> output/logs/pipeline.cron.log 2>&1 || /usr/local/bin/econdata-alert
 ```
 
-Re-runs are safe (idempotent upserts). Logs are also written to `output/logs/`.
+### systemd timer
+
+`/etc/systemd/system/econdata-extract.service`:
+
+```ini
+[Unit]
+Description=EconData extraction
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/econdata
+ExecStart=/usr/bin/env dotnet run --project src/EconData.Cli -c Release -- extract --metrics all --db
+StandardOutput=append:/var/log/econdata/pipeline.log
+StandardError=append:/var/log/econdata/pipeline.log
+# systemd marks the unit failed on non-zero exit, which is what alerting should watch
+OnFailure=econdata-alert@%n.service
+```
+
+`/etc/systemd/system/econdata-extract.timer`:
+
+```ini
+[Unit]
+Description=Daily EconData extraction
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable with `systemctl daemon-reload && systemctl enable --now econdata-extract.timer`.
+Use `systemctl list-timers econdata-extract.timer` to confirm, and
+`journalctl -u econdata-extract.service` for history.
+
+### Log rotation and retention
+
+Logs go to `output/logs/` (Serilog) plus whatever the scheduler redirects to.
+Rotate daily and keep 30 days:
+
+`/etc/logrotate.d/econdata`:
+
+```
+/var/log/econdata/*.log /opt/econdata/output/logs/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+With journald instead, retention is governed by `SystemMaxUse=` /
+`journalctl --vacuum-time=30d`; no logrotate entry is needed.
+
+Run history (including `SUCCESS`/`PARTIAL`/`FAILED`) is visible in the Web UI
+`/runs` page and via `GET /api/runs`.
 
 ---
 
 ## Backups
 
-The database is one file. Back it up with a consistent snapshot:
+The database is one file (plus `-wal`/`-shm` while running). Take a consistent
+snapshot with one of these:
 
 ```bash
-# SQLite-aware online backup (safe while the app is running)
+# Option A: VACUUM INTO — no external tool needed, safe while running
+dotnet run --project src/EconData.Cli -c Release -- backup --to "backups/econdata-$(date +%F).db"
+
+# Option B: if sqlite3 is installed
 sqlite3 output/econdata.db ".backup 'backups/econdata-$(date +%F).db'"
 ```
 
-Also archive `config/metrics.json` and `config/entities.json` alongside it.
+> `sqlite3` is **not** installed by default on every host. Prefer Option A unless you
+> have verified `sqlite3 --version` works on the target machine.
+
+Also archive `config/metrics.json` and `config/entities.json` alongside the snapshot.
+
+### Restore (verified procedure)
+
+```bash
+# 1. Stop the app / scheduler so nothing writes during the restore.
+systemctl stop econdata-web econdata-extract.timer   # or your equivalents
+
+# 2. Move the current files aside (never restore over a live WAL).
+mv output/econdata.db output/econdata.db.broken
+rm -f output/econdata.db-wal output/econdata.db-shm
+
+# 3. Copy the snapshot into place.
+cp backups/econdata-2026-10-22.db output/econdata.db
+
+# 4. Verify integrity + schema on the restored copy.
+dotnet run --project src/EconData.Cli -c Release -- check-db
+dotnet run --project src/EconData.Cli -c Release -- doctor
+
+# 5. Sample query: confirm rows survived.
+dotnet run --project src/EconData.Web &
+curl 'http://127.0.0.1:5000/api/overview'
+```
+
+A restore is only complete when `check-db` reports `integrity_check=ok` **and**
+`/api/overview` returns non-zero observation counts.
 
 ---
 
