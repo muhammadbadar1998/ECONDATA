@@ -21,6 +21,9 @@ All notable changes to this project are documented here. Format loosely follows
   fails.
 
 ### Changed
+- A run that extracts no valid metrics is now recorded as `FAILED` (not `SUCCESS`) with
+  `metrics_extracted = 0`; the Web job filters unknown metric codes like the CLI and
+  surfaces "No valid metrics requested" instead of a bogus success.
 - `v_latest_metrics_snapshot` no longer coerces missing values to `0`; views are
   dropped and recreated on `init-db` so existing databases pick up the change.
 - Database verification (`check-db`, the Web `Check` job, and `doctor`) is now

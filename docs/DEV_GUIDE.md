@@ -267,5 +267,10 @@ when at least one metric succeeded, or `FAILED` when none did. A metric that is 
 because it is not in the catalog is non-fatal and does not change the status.
 
 `dbe_pipeline_runs.metrics_extracted` counts metrics that were **successfully extracted**
-(not the number requested). `observations_skipped` is the row-level skip count (non-numeric
+(not the number requested).
+
+A run that extracts nothing (no requested metric succeeds) is recorded as `FAILED`
+with `metrics_extracted = 0`, never `SUCCESS`. The Web job resolves requested metrics
+against the catalog exactly like the CLI and surfaces "No valid metrics requested"
+when none resolve, so an all-unknown request never runs. `observations_skipped` is the row-level skip count (non-numeric
 or unparseable rows), distinct from metric-level skipped outcomes.

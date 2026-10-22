@@ -106,12 +106,18 @@ public sealed class PipelineJobExecutor : IJobExecutor
         {
             return _catalog.Codes;
         }
-        return request.Metrics;
+        return request.Metrics
+            .Where(code => _catalog.Get(code) is not null)
+            .ToList();
     }
 
     private async Task<JobResult> ExtractAsyncWithAdapter(JobRequest request, IProgress<JobProgressUpdate> progress, CancellationToken cancellationToken)
     {
         var metrics = ResolveMetrics(request);
+        if (metrics.Count == 0)
+        {
+            return new JobResult("No valid metrics requested");
+        }
         var runner = new PipelineRunner(
             _catalog,
             _seed,

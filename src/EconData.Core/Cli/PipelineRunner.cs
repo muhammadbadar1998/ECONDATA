@@ -16,7 +16,8 @@ public sealed record PipelineSummary(int TotalObservations, int ObservationsUpse
         .Where(o => o.Outcome == PipelineOutcome.Failed)
         .Select(o => o.MetricCode)
         .ToList();
-    public bool Succeeded => FailedMetrics.Count == 0;
+    public bool Succeeded => FailedMetrics.Count == 0
+        && (Outcomes.Count == 0 || Outcomes.Any(o => o.Outcome == PipelineOutcome.Succeeded));
 }
 
 /// <summary>Runs the normalized extraction → transform → load pipeline (port of the Python orchestrator).</summary>
@@ -233,8 +234,8 @@ public sealed class PipelineRunner
                 observationsSkipped: totalObservations - observationsUpserted,
                 providers: providers.ToList(),
                 sourceIds: sourceIds.Values.ToList(),
-                status: failedMetrics.Count == 0 ? "SUCCESS"
-                : failedMetrics.Count == metricsToRun.Count ? "FAILED" : "PARTIAL",
+                status: metricsToRun.Count > 0 && !outcomes.Any(o => o.Outcome == PipelineOutcome.Succeeded) ? "FAILED"
+                : failedMetrics.Count == 0 ? "SUCCESS" : "PARTIAL",
                 executionSeconds: elapsed);
         }
 

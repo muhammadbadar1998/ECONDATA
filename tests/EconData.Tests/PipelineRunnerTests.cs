@@ -181,4 +181,55 @@ public class PipelineRunnerTests : IDisposable
         }
     }
 
+
+    [Fact]
+    public async Task AllSkipped_ReportsFailed()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var source = new FakeSource();
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            source,
+            _logger);
+
+        var summary = await runner.RunAsync(new[] { "bogus_a", "bogus_b" }, loadToDb: true);
+
+        Assert.False(summary.Succeeded);
+        Assert.Equal(0, summary.Outcomes.Count(o => o.Outcome == PipelineOutcome.Succeeded));
+        Assert.Equal(2, summary.Outcomes.Count(o => o.Outcome == PipelineOutcome.Skipped));
+        Assert.Equal(0, summary.TotalObservations);
+
+        using var connection = _factory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT status, metrics_extracted FROM dbe_pipeline_runs ORDER BY run_id DESC LIMIT 1;";
+        using var r = cmd.ExecuteReader(); r.Read();
+        Assert.Equal("FAILED", r.GetString(0));
+        Assert.Equal(0, r.GetInt32(1));
+    }
+
+    [Fact]
+    public async Task EmptyMetricList_IsNoOp()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var source = new FakeSource();
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            source,
+            _logger);
+
+        var summary = await runner.RunAsync(Array.Empty<string>(), loadToDb: true);
+
+        Assert.True(summary.Succeeded);
+        Assert.Empty(summary.Outcomes);
+        Assert.Equal(0, summary.TotalObservations);
+    }
+
 }
