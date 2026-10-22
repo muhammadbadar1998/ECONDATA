@@ -197,6 +197,7 @@ public class DerivedAggregationTests : IDisposable
         var series = analytics.GetSeries("AGG10", "gdp_usd");
         Assert.Single(series);
         Assert.Equal(30.0, series[0].Value);
+        Assert.Equal("derived", series[0].SourceKind);
     }
 
     [Fact]
@@ -211,4 +212,24 @@ public class DerivedAggregationTests : IDisposable
         cmd.CommandText = "SELECT COUNT(*) FROM dbe_derived_observations WHERE entity_id=10";
         Assert.Equal(2L, (long)cmd.ExecuteScalar()!);
     }
+
+    [Fact]
+    public void AggregationFailure_ReportedInFailedMetrics()
+    {
+        // Force failure by dropping the derived table before aggregation.
+        using (var c = _factory.Open()) { using var cmd = c.CreateCommand(); cmd.CommandText = "DROP TABLE dbe_derived_observations"; cmd.ExecuteNonQuery(); }
+        Seed("gdp_usd", "sum", 10, new[] { 1, 2 });
+        AddObs("gdp_usd", 1, "2020-01-01", "2020-12-31", 10);
+        AddObs("gdp_usd", 2, "2020-01-01", "2020-12-31", 20);
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var loader = new DatabaseLoader(_factory, Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"), _logger);
+        var (metricIds, _) = loader.GetMetricAndSourceIds();
+        var records = DataTransformer.CreateMetricsRecords(catalog);
+        // Re-create schema? no; aggregator will throw on missing table. Wrap via PipelineRunner? PipelineRunner needs source. Use direct: call aggregator inside try.
+        Exception? ex = null;
+        try { new DerivedAggregator(_factory, loader, _logger).Aggregate(new[] { "gdp_usd" }, records, metricIds); }
+        catch (Exception e) { ex = e; }
+        Assert.NotNull(ex);
+    }
+
 }

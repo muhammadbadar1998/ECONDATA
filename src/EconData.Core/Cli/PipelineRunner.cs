@@ -196,9 +196,20 @@ public sealed class PipelineRunner
             }).ToList();
             if (optIn.Count > 0)
             {
-                var agg = new Aggregation.DerivedAggregator(_factory, loader, _logger);
-                var res = agg.Aggregate(optIn, DataTransformer.CreateMetricsRecords(_catalog), metricIds);
-                _logger.Information("Derived aggregation wrote {Rows} rows for {Metrics}.", res.RowsWritten, string.Join(", ", res.Metrics));
+                try
+                {
+                    var agg = new Aggregation.DerivedAggregator(_factory, loader, _logger);
+                    var res = agg.Aggregate(optIn, DataTransformer.CreateMetricsRecords(_catalog), metricIds);
+                    _logger.Information("Derived aggregation wrote {Rows} rows for {Metrics}.", res.RowsWritten, string.Join(", ", res.Metrics));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.Error(ex, "Derived aggregation failed.");
+                    foreach (var code in optIn)
+                    {
+                        failedMetrics.Add($"aggregate:{code}");
+                    }
+                }
             }
 
             loader.LogPipelineRun(

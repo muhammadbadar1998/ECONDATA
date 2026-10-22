@@ -6,6 +6,11 @@ All notable changes to this project are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- Derived aggregates layer: opt-in `aggregation` key (`sum`/`mean`, default `none`) in
+  `config/metrics.json` drives computed aggregate rows in `dbe_derived_observations`,
+  exposed through the unified `v_observations_all` view; `AnalyticsService` read paths
+  now carry `source_kind` ("raw"/"derived") and separate derived counts in coverage.
+  Aggregation failures are reported as `aggregate:<metric>` in `FailedMetrics`.
 - `doctor` CLI command: read-only readiness check (runtime, config, DB presence,
   SQLite integrity, schema/view descriptor, sqlite-vec load, Ollama and LLM
   reachability). Exits non-zero only on blockers.

@@ -253,3 +253,7 @@ The loadable extension is vendored under `native/sqlite-vec/<rid>/` (pinned to
 v0.1.9). `VectorStore` loads it per connection and manages the `dbe_embeddings_vec`
 `vec0` table alongside `dbe_embeddings`. To support another platform, add its RID
 directory from the matching sqlite-vec release asset (see `native/sqlite-vec/README.md`).
+
+## Derived aggregates
+
+Opt-in via the `aggregation` key in `config/metrics.json` (`sum`/`mean`, default `none`). Computed rows are stored in `dbe_derived_observations` and exposed through `v_observations_all` with `source_kind = "derived"`. Read paths (`/api/series`, `/api/snapshot`, `/api/coverage`) expose `source_kind` and separate derived counts.

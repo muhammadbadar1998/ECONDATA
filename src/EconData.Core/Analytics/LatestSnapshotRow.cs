@@ -12,4 +12,5 @@ public sealed record LatestSnapshotRow(
     [property: JsonPropertyName("frequency")] string Frequency,
     [property: JsonPropertyName("base_unit")] string BaseUnit,
     [property: JsonPropertyName("value")] double Value,
-    [property: JsonPropertyName("period")] string Period);
+    [property: JsonPropertyName("period")] string Period,
+    [property: JsonPropertyName("source_kind")] string SourceKind = "raw");

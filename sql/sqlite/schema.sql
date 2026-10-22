@@ -246,6 +246,7 @@ SELECT
     m.base_unit,
     lo.val AS value,
     lo.start_date AS period,
+    lo.source_kind AS source_kind,
     date('now') AS snapshot_date
 FROM dbe_entities e
 JOIN v_observations_all lo ON e.entity_id = lo.entity_id

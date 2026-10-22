@@ -61,6 +61,8 @@ public sealed class AnalyticsService
                 m.base_unit,
                 COUNT(DISTINCT o.entity_id) AS entity_count,
                 COUNT(o.id) AS observation_count,
+            (SELECT COALESCE(COUNT(DISTINCT d.entity_id),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_entity_count,
+            (SELECT COALESCE(COUNT(*),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_observation_count,
                 MIN(o.start_date) AS min_period,
                 MAX(o.start_date) AS max_period
             FROM dbe_metrics m
@@ -83,8 +85,10 @@ public sealed class AnalyticsService
                 BaseUnit: reader.GetString(4),
                 EntityCount: reader.GetInt32(5),
                 ObservationCount: reader.GetInt32(6),
-                MinPeriod: reader.IsDBNull(7) ? null : reader.GetString(7),
-                MaxPeriod: reader.IsDBNull(8) ? null : reader.GetString(8)));
+                DerivedEntityCount: reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
+                DerivedObservationCount: reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                MinPeriod: reader.IsDBNull(9) ? null : reader.GetString(9),
+                MaxPeriod: reader.IsDBNull(10) ? null : reader.GetString(10)));
         }
         return list;
     }
@@ -99,7 +103,8 @@ public sealed class AnalyticsService
                 o.start_date,
                 o.val,
                 o.unit,
-                o.period_str
+                o.period_str,
+                o.source_kind
             FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
@@ -121,7 +126,8 @@ public sealed class AnalyticsService
                 Period: reader.GetString(2),
                 Value: reader.GetDouble(3),
                 Unit: reader.IsDBNull(4) ? null : reader.GetString(4),
-                PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5)));
+                PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5),
+                SourceKind: reader.IsDBNull(6) ? "raw" : reader.GetString(6)));
         }
         return list;
     }
@@ -137,7 +143,8 @@ public sealed class AnalyticsService
                 o.start_date,
                 o.val,
                 o.unit,
-                o.period_str
+                o.period_str,
+                o.source_kind
             FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
@@ -181,7 +188,8 @@ public sealed class AnalyticsService
                 frequency,
                 base_unit,
                 value,
-                period
+                period,
+                source_kind
             FROM v_latest_metrics_snapshot
             WHERE 1=1
             """);
@@ -230,7 +238,8 @@ public sealed class AnalyticsService
                 Frequency: reader.GetString(5),
                 BaseUnit: reader.GetString(6),
                 Value: reader.GetDouble(7),
-                Period: reader.GetString(8)));
+                Period: reader.GetString(8),
+                SourceKind: reader.IsDBNull(9) ? "raw" : reader.GetString(9)));
         }
         return list;
     }
@@ -251,7 +260,8 @@ public sealed class AnalyticsService
                 v.frequency,
                 v.base_unit,
                 v.value,
-                v.period
+                v.period,
+                v.source_kind
             FROM v_latest_metrics_snapshot v
             JOIN dbe_entities e ON e.entity_code = v.country_code
             WHERE v.metric_code = @metric
@@ -276,7 +286,8 @@ public sealed class AnalyticsService
                 Frequency: reader.GetString(5),
                 BaseUnit: reader.GetString(6),
                 Value: reader.GetDouble(7),
-                Period: reader.GetString(8)));
+                Period: reader.GetString(8),
+                SourceKind: reader.IsDBNull(9) ? "raw" : reader.GetString(9)));
         }
         return list;
     }

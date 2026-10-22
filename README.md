@@ -153,3 +153,6 @@ uses the real `sqlite-vec` extension; no network or Ollama is needed.
 - [`EXPLAINER.md`](EXPLAINER.md) — architecture and codebase explainer.
 - [`CHANGELOG.md`](CHANGELOG.md) — release history.
 
+## Derived aggregates
+
+Metrics opt in via an `"aggregation": "sum" | "mean"` key in `config/metrics.json` (default `"none"`). For each aggregate entity in `config/entities.json` memberships, the pipeline computes rows from member observations when coverage is at least 50% of members with data. Derived rows live in `dbe_derived_observations` and surface through `v_observations_all` with `source_kind = "derived"`; raw rows keep `source_kind = "raw"`. Analytics endpoints expose `source_kind` on series/snapshot points and separate derived counts in coverage.

@@ -9,4 +9,5 @@ public sealed record SeriesPoint(
     [property: JsonPropertyName("period")] string Period,
     [property: JsonPropertyName("value")] double Value,
     [property: JsonPropertyName("unit")] string? Unit,
-    [property: JsonPropertyName("period_str")] string? PeriodStr);
+    [property: JsonPropertyName("period_str")] string? PeriodStr,
+    [property: JsonPropertyName("source_kind")] string SourceKind = "raw");
