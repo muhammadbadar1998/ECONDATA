@@ -69,6 +69,66 @@ public class PipelineRunnerTests : IDisposable
         Assert.Equal(300.0, Convert.ToDouble(latest.ExecuteScalar(), CultureInfo.InvariantCulture));
     }
 
+    [Fact]
+    public async Task RunningPipelineTwiceIsIdempotent()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            new FakeSource(),
+            _logger);
+
+        await runner.RunAsync(new[] { "gdp_usd" }, loadToDb: true);
+
+        long obsBefore, entBefore, metBefore, srcBefore, derivedBefore;
+        string keysBefore;
+        using (var connection = _factory.Open())
+        {
+            obsBefore = ScalarLong(connection, "SELECT count(*) FROM dbe_observations");
+            entBefore = ScalarLong(connection, "SELECT count(*) FROM dbe_entities");
+            metBefore = ScalarLong(connection, "SELECT count(*) FROM dbe_metrics");
+            srcBefore = ScalarLong(connection, "SELECT count(*) FROM dbe_sources");
+            derivedBefore = ScalarLong(connection, "SELECT count(*) FROM dbe_derived_observations");
+            keysBefore = ObservationKeys(connection);
+        }
+
+        await runner.RunAsync(new[] { "gdp_usd" }, loadToDb: true);
+
+        using (var connection = _factory.Open())
+        {
+            Assert.Equal(obsBefore, ScalarLong(connection, "SELECT count(*) FROM dbe_observations"));
+            Assert.Equal(entBefore, ScalarLong(connection, "SELECT count(*) FROM dbe_entities"));
+            Assert.Equal(metBefore, ScalarLong(connection, "SELECT count(*) FROM dbe_metrics"));
+            Assert.Equal(srcBefore, ScalarLong(connection, "SELECT count(*) FROM dbe_sources"));
+            Assert.Equal(derivedBefore, ScalarLong(connection, "SELECT count(*) FROM dbe_derived_observations"));
+            Assert.Equal(keysBefore, ObservationKeys(connection));
+
+            // The audit log grows once per run; that is expected, not duplication.
+            Assert.Equal(2, ScalarLong(connection, "SELECT count(*) FROM dbe_pipeline_runs"));
+            Assert.Equal(2, ScalarLong(connection, "SELECT count(*) FROM dbe_pipeline_runs WHERE status = 'SUCCESS'"));
+        }
+    }
+
+    private static string ObservationKeys(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT metric_id || '|' || entity_id || '|' || start_date || '|' || end_date " +
+            "FROM dbe_observations ORDER BY 1";
+        using var reader = command.ExecuteReader();
+        var keys = new List<string>();
+        while (reader.Read())
+        {
+            keys.Add(reader.GetString(0));
+        }
+
+        return string.Join("\n", keys);
+    }
+
     private static long ScalarLong(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
