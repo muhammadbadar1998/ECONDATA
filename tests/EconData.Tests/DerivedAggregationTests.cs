@@ -214,7 +214,7 @@ public class DerivedAggregationTests : IDisposable
     }
 
     [Fact]
-    public void AggregationFailure_ReportedInFailedMetrics()
+    public void Aggregate_ThrowsWhenDerivedTableMissing()
     {
         // Force failure by dropping the derived table before aggregation.
         using (var c = _factory.Open()) { using var cmd = c.CreateCommand(); cmd.CommandText = "DROP TABLE dbe_derived_observations"; cmd.ExecuteNonQuery(); }

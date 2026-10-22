@@ -1,4 +1,5 @@
 using System.Globalization;
+using EconData.Core.Aggregation;
 using EconData.Core.Cli;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
@@ -91,4 +92,38 @@ public class PipelineRunnerTests : IDisposable
             return Task.FromResult<IReadOnlyList<RawSeries>>(new[] { series });
         }
     }
+
+    [Fact]
+    public async Task AggregationFailure_IsReportedInFailedMetrics()
+    {
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var source = new FakeSource();
+        var runner = new PipelineRunner(
+            catalog,
+            seed,
+            _factory,
+            Path.Combine(TestPaths.RepoRoot, "sql", "sqlite", "schema.sql"),
+            source,
+            _logger,
+            new ThrowingAggregator());
+
+        var summary = await runner.RunAsync(new[] { "gdp_usd" }, loadToDb: true);
+
+        Assert.Contains("aggregate:gdp_usd", summary.FailedMetrics);
+        Assert.False(summary.Succeeded);
+
+        using var connection = _factory.Open();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT status FROM dbe_pipeline_runs ORDER BY run_id DESC LIMIT 1;";
+        var status = Convert.ToString(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+        Assert.True(status == "PARTIAL" || status == "FAILED", $"unexpected status {status}");
+    }
+
+    private sealed class ThrowingAggregator : IDerivedAggregator
+    {
+        public DerivedResult Aggregate(IReadOnlyList<string> metricCodes, IReadOnlyList<MetricRecord> metrics, IReadOnlyDictionary<string, int> metricIds, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("boom");
+    }
+
 }

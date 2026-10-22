@@ -7,7 +7,7 @@ namespace EconData.Core.Aggregation;
 
 public sealed record DerivedResult(int RowsWritten, IReadOnlyList<string> Metrics);
 
-public sealed class DerivedAggregator
+public sealed class DerivedAggregator : IDerivedAggregator
 {
     private readonly SqliteConnectionFactory _factory;
     private readonly DatabaseLoader _loader;

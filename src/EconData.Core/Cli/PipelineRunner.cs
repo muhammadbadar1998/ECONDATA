@@ -24,6 +24,7 @@ public sealed class PipelineRunner
     private readonly string _schemaPath;
     private readonly ISeriesSource _source;
     private readonly ILogger _logger;
+    private readonly IDerivedAggregator? _aggregator;
 
     public PipelineRunner(
         MetricsCatalog catalog,
@@ -31,7 +32,8 @@ public sealed class PipelineRunner
         SqliteConnectionFactory factory,
         string schemaPath,
         ISeriesSource source,
-        ILogger logger)
+        ILogger logger,
+        IDerivedAggregator? aggregator = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(seed);
@@ -45,6 +47,7 @@ public sealed class PipelineRunner
         _schemaPath = schemaPath;
         _source = source;
         _logger = logger;
+        _aggregator = aggregator;
     }
 
     public async Task<PipelineSummary> RunAsync(
@@ -198,7 +201,7 @@ public sealed class PipelineRunner
             {
                 try
                 {
-                    var agg = new Aggregation.DerivedAggregator(_factory, loader, _logger);
+                    var agg = _aggregator ?? new Aggregation.DerivedAggregator(_factory, loader, _logger);
                     var res = agg.Aggregate(optIn, DataTransformer.CreateMetricsRecords(_catalog), metricIds);
                     _logger.Information("Derived aggregation wrote {Rows} rows for {Metrics}.", res.RowsWritten, string.Join(", ", res.Metrics));
                 }
