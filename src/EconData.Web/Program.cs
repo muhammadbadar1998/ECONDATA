@@ -33,7 +33,8 @@ var logger = LoggingSetup.Configure(
     extraSink: logSink);
 
 builder.Logging.AddSerilog(logger, dispose: true);
-builder.WebHost.UseUrls("http://127.0.0.1:5000");
+var configuredUrls = builder.Configuration["urls"] ?? builder.Configuration["ASPNETCORE_URLS"] ?? "http://127.0.0.1:5000";
+builder.WebHost.UseUrls(configuredUrls);
 
 var schemaPath = CliPaths.Resolve(root, "sql/sqlite/schema.sql");
 var vecPath = CliPaths.Resolve(root, config.SqliteVecExtensionPath);
@@ -101,7 +102,11 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapGet("/api/overview", (AnalyticsService analytics) => Results.Ok(analytics.GetOverview()));
+app.MapGet("/api/overview", (AnalyticsService analytics) =>
+{
+    try { return Results.Ok(analytics.GetOverview()); }
+    catch (Microsoft.Data.Sqlite.SqliteException) { return Results.Json(new { error = "database not initialized" }, statusCode: StatusCodes.Status503ServiceUnavailable); }
+});
 app.MapGet("/api/coverage", (AnalyticsService analytics) => Results.Ok(analytics.GetMetricCoverage()));
 app.MapGet("/api/series", (AnalyticsService analytics, string entity, string metric) => Results.Ok(analytics.GetSeries(entity, metric)));
 app.MapGet("/api/snapshot", (AnalyticsService analytics, string? entity, string? metric, string? category, int limit = 200) => Results.Ok(analytics.GetLatestSnapshot(entity, metric, category, limit)));
