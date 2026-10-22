@@ -1,4 +1,3 @@
-using System.Globalization;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using Microsoft.Data.Sqlite;
@@ -101,8 +100,8 @@ public sealed class DerivedAggregator
                 continue;
             }
 
-            // group observations by start_date across contributing members
-            var byPeriod = new Dictionary<string, List<(int EntityId, double Val)>>();
+            // group observations by (start_date, end_date) across contributing members
+            var byPeriod = new Dictionary<(string Start, string End), List<(int EntityId, double Val)>>();
             foreach (var memberId in contributingMembers)
             {
                 using var cmd = connection.CreateCommand();
@@ -116,16 +115,17 @@ public sealed class DerivedAggregator
                     var sd = r.GetString(0);
                     var ed = r.GetString(1);
                     var val = r.GetDouble(2);
-                    if (!byPeriod.TryGetValue(sd, out var list))
+                    var key = (sd, ed);
+                    if (!byPeriod.TryGetValue(key, out var list))
                     {
                         list = new List<(int, double)>();
-                        byPeriod[sd] = list;
+                        byPeriod[key] = list;
                     }
                     list.Add((memberId, val));
                 }
             }
 
-            foreach (var (startDate, vals) in byPeriod)
+            foreach (var (period, vals) in byPeriod)
             {
                 var covered = vals.Select(v => v.EntityId).Distinct().Count();
                 if (covered * 2 < contributingMembers.Count)
@@ -136,29 +136,12 @@ public sealed class DerivedAggregator
                 double val = method == "sum"
                     ? vals.Sum(v => v.Val)
                     : vals.Average(v => v.Val);
-                var endDate = vals.Count > 0 ? startDate : startDate;
-                // end_date: use the max end_date among contributing rows for this period
-                var endDates = new List<string>();
-                foreach (var memberId in vals.Select(v => v.EntityId).Distinct())
-                {
-                    using var cmd = connection.CreateCommand();
-                    cmd.CommandText = "SELECT end_date FROM dbe_observations WHERE metric_id=@m AND entity_id=@e AND start_date=@s";
-                    cmd.Parameters.AddWithValue("@m", metricId);
-                    cmd.Parameters.AddWithValue("@e", memberId);
-                    cmd.Parameters.AddWithValue("@s", startDate);
-                    var ed = Convert.ToString(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
-                    if (!string.IsNullOrEmpty(ed))
-                    {
-                        endDates.Add(ed);
-                    }
-                }
-                var finalEnd = endDates.Count > 0 ? endDates.Max() : startDate;
 
                 rows.Add(new object?[]
                 {
                     aggregateId,
-                    startDate,
-                    finalEnd,
+                    period.Start,
+                    period.End,
                     val,
                     unit,
                     method,

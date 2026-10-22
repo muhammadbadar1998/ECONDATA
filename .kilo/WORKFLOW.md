@@ -58,6 +58,16 @@ Keep provider prompt caches warm so long sessions stay cheap and consistent.
 - Start a fresh session per phase when the loop changes tier or when the prior conversation
   is only background; the working documents carry the state instead of the transcript.
 
+## Plan Requirements
+
+Every plan MUST include, before it is considered approved:
+
+- **Deliverables** — numbered list, each with a "done when" criterion.
+- **Target files** — table of `path` → change.
+- **Definition of Done** — checklist of verifiable outcomes (build/test/format/UAT).
+
+Plans missing any of these are incomplete and must not be executed.
+
 ## Persistent Working Documents
 
 Three files are the compact source of truth. Together they let any session resume with
