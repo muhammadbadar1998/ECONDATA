@@ -26,7 +26,8 @@ public static class DataTransformer
                 BaseUnit: info.EffectiveBaseUnit,
                 UnitNormalization: info.UnitNormalization,
                 Description: info.Description,
-                IsAggregatable: string.Equals(info.EntityScope, "aggregate", StringComparison.Ordinal),
+                IsAggregatable: string.Equals(info.Aggregation, "sum", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(info.Aggregation, "mean", StringComparison.OrdinalIgnoreCase),
                 AggregationMethod: info.Aggregation,
                 Synonyms: info.Synonyms,
                 Provider: info.Provider,

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using EconData.Core.Aggregation;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
@@ -187,6 +188,19 @@ public sealed class PipelineRunner
         var elapsed = started.Elapsed.TotalSeconds;
         if (loader is not null)
         {
+            var optIn = metricsToRun.Where(code =>
+            {
+                var m = _catalog.Get(code);
+                return m is not null && (string.Equals(m.Aggregation, "sum", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(m.Aggregation, "mean", StringComparison.OrdinalIgnoreCase));
+            }).ToList();
+            if (optIn.Count > 0)
+            {
+                var agg = new Aggregation.DerivedAggregator(_factory, loader, _logger);
+                var res = agg.Aggregate(optIn, DataTransformer.CreateMetricsRecords(_catalog), metricIds);
+                _logger.Information("Derived aggregation wrote {Rows} rows for {Metrics}.", res.RowsWritten, string.Join(", ", res.Metrics));
+            }
+
             loader.LogPipelineRun(
                 dagId: "econdata_manual",
                 taskId: "run_pipeline",

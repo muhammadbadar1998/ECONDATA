@@ -100,7 +100,7 @@ public sealed class AnalyticsService
                 o.val,
                 o.unit,
                 o.period_str
-            FROM dbe_observations o
+            FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
             WHERE e.entity_code = @entity AND m.metric_code = @metric
@@ -138,7 +138,7 @@ public sealed class AnalyticsService
                 o.val,
                 o.unit,
                 o.period_str
-            FROM dbe_observations o
+            FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
             WHERE m.metric_code = @metric AND e.entity_code = @entity
@@ -293,7 +293,7 @@ public sealed class AnalyticsService
                 e.entity_type,
                 e.is_aggregate,
                 (SELECT COUNT(*) FROM dbe_entity_aliases a WHERE a.entity_id = e.entity_id) AS alias_count,
-                (SELECT COUNT(*) FROM dbe_observations o WHERE o.entity_id = e.entity_id) AS observation_count
+                (SELECT COUNT(*) FROM v_observations_all o WHERE o.entity_id = e.entity_id) AS observation_count
             FROM dbe_entities e
             WHERE e.is_active = 1
             """);

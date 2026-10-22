@@ -18,10 +18,16 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["GDP", "gross domestic product", "economic output", "GDP current USD"],
+      "synonyms": [
+        "GDP",
+        "gross domestic product",
+        "economic output",
+        "GDP current USD"
+      ],
       "description": "GDP at purchaser's prices is the sum of gross value added by all resident producers in the economy plus any product taxes and minus any subsidies not included in the value of the products.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2026,
+      "aggregation": "sum"
     },
     {
       "metric_code": "gdp_growth",
@@ -35,10 +41,15 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["GDP growth", "economic growth", "real GDP growth"],
+      "synonyms": [
+        "GDP growth",
+        "economic growth",
+        "real GDP growth"
+      ],
       "description": "Annual percentage growth rate of GDP at market prices based on constant local currency.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2026,
+      "aggregation": "mean"
     },
     {
       "metric_code": "inflation_cpi",
@@ -52,10 +63,16 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["inflation", "CPI", "consumer price index", "inflation rate"],
+      "synonyms": [
+        "inflation",
+        "CPI",
+        "consumer price index",
+        "inflation rate"
+      ],
       "description": "Inflation as measured by the consumer price index reflects the annual percentage change in the cost to the average consumer of acquiring a basket of goods and services.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2026,
+      "aggregation": "mean"
     },
     {
       "metric_code": "unemployment_rate",
@@ -69,10 +86,15 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["unemployment", "jobless rate", "unemployment rate"],
+      "synonyms": [
+        "unemployment",
+        "jobless rate",
+        "unemployment rate"
+      ],
       "description": "Unemployment refers to the share of the labor force that is without work but available for and seeking employment.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2026,
+      "aggregation": "mean"
     },
     {
       "metric_code": "population",
@@ -86,10 +108,15 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["population", "total population", "headcount"],
+      "synonyms": [
+        "population",
+        "total population",
+        "headcount"
+      ],
       "description": "Total population counts all residents regardless of legal status or citizenship.",
       "start_year": 1960,
-      "end_year": 2026
+      "end_year": 2026,
+      "aggregation": "sum"
     },
     {
       "metric_code": "current_account_balance",
@@ -103,7 +130,11 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["current account", "current account balance", "CA balance"],
+      "synonyms": [
+        "current account",
+        "current account balance",
+        "CA balance"
+      ],
       "description": "Current account balance is the sum of net exports of goods and services, net primary income, and net secondary income relative to GDP.",
       "start_year": 1960,
       "end_year": 2026
@@ -120,7 +151,11 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["government debt", "public debt", "debt to GDP"],
+      "synonyms": [
+        "government debt",
+        "public debt",
+        "debt to GDP"
+      ],
       "description": "Debt is the entire stock of direct government fixed-term contractual obligations to others outstanding on a particular date.",
       "start_year": 1960,
       "end_year": 2026
@@ -137,7 +172,10 @@
       "frequency": "Annual",
       "dimension_key": "country",
       "entity_scope": "country",
-      "synonyms": ["GEP forecast", "GDP growth forecast"],
+      "synonyms": [
+        "GEP forecast",
+        "GDP growth forecast"
+      ],
       "description": "Medium-term annual real GDP growth rate forecast from World Bank Global Economic Prospects.",
       "start_year": 2024,
       "end_year": 2030
@@ -155,7 +193,10 @@
       "frequency": "Annual",
       "dimension_key": "LOCATION",
       "entity_scope": "country",
-      "synonyms": ["OECD long-term forecast", "long-term GDP forecast"],
+      "synonyms": [
+        "OECD long-term forecast",
+        "long-term GDP forecast"
+      ],
       "description": "Long-term projections of real GDP from OECD up to 2060.",
       "start_year": 2024,
       "end_year": 2060

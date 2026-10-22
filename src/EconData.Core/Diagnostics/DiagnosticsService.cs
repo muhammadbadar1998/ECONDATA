@@ -130,6 +130,24 @@ public sealed class DiagnosticsService
         // 6. Vector extension
         await RunVectorCheckAsync(checks).ConfigureAwait(false);
 
+        try
+        {
+            using var connection = _factory.OpenReadOnly();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='dbe_derived_observations';";
+            var t = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+            using var cmd2 = connection.CreateCommand();
+            cmd2.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='view' AND name='v_observations_all';";
+            var v = Convert.ToInt32(cmd2.ExecuteScalar(), CultureInfo.InvariantCulture);
+            checks.Add(t > 0 && v > 0
+                ? new CheckResult("aggregates", Diagnosis.Pass, "derived table and unified view present")
+                : new CheckResult("aggregates", Diagnosis.Warn, "derived aggregates not initialized"));
+        }
+        catch (Exception ex)
+        {
+            checks.Add(new CheckResult("aggregates", Diagnosis.Warn, ex.Message));
+        }
+
         await AddProbeChecksAsync(checks, cancellationToken).ConfigureAwait(false);
 
         return new DoctorReport(checks);

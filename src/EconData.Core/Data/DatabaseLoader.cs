@@ -307,6 +307,22 @@ public sealed class DatabaseLoader
         return finalRows.Count;
     }
 
+    public int UpsertDerivedObservations(int metricId, IReadOnlyList<object?[]> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        if (rows.Count == 0)
+        {
+            return 0;
+        }
+
+        return Upsert(
+            "dbe_derived_observations",
+            new[] { "metric_id", "entity_id", "start_date", "end_date", "val", "unit", "aggregation_method", "member_count", "covered_count" },
+            rows.Select(r => new object?[] { metricId, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7] }).ToList(),
+            new[] { "metric_id", "entity_id", "start_date", "end_date" },
+            new[] { "val", "unit", "aggregation_method", "member_count", "covered_count", "computed_at" });
+    }
+
     // ---- Audit ----
     public void LogPipelineRun(
         string dagId,

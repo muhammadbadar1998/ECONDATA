@@ -21,7 +21,7 @@ public sealed class MetricDefinition
     [JsonPropertyName("unit_normalization")] public string UnitNormalization { get; init; } = string.Empty;
     [JsonPropertyName("dimension_key")] public string DimensionKey { get; init; } = "country";
     [JsonPropertyName("entity_scope")] public string EntityScope { get; init; } = "country";
-    [JsonPropertyName("aggregation")] public string Aggregation { get; init; } = "mean";
+    [JsonPropertyName("aggregation")] public string Aggregation { get; init; } = "none";
 
     /// <summary>Base unit, falling back to the display unit when unset (matches the Python loader).</summary>
     public string EffectiveBaseUnit => string.IsNullOrEmpty(BaseUnit) ? Unit : BaseUnit;
