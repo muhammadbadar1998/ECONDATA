@@ -90,6 +90,39 @@ actionable message if the embedding or chat backend is unreachable.
 
 ---
 
+## Step 6 — Medallion lake (optional staging tier)
+
+The lake stages data through `output/lake/` (set `ECONDATA_LAKE_DIR` to relocate):
+
+| Tier | Location | Format | Semantics |
+| :--- | :--- | :--- | :--- |
+| Bronze | `bronze/<provider>/<dataset>/<metric>/<run>.parquet` | Parquet | Append-only; one file per run per metric; raw series JSON |
+| Silver | `silver/<metric>.parquet` | Parquet | Whole-partition overwrite; typed, deduped, unit-normalized |
+| Gold | `gold/econdata.duckdb` | DuckDB | `dbe_*` tables + views; idempotent upserts from silver |
+
+Bronze → Silver → Gold is optional and additive — SQLite (`--db`) remains the
+default serving store for analytics and vectors.
+
+```bash
+# Build all three tiers in one pass
+dotnet run --project src/EconData.Cli -- extract --metrics all --bronze --silver --gold
+
+# Inspect lake health (counts, files, size, newest run)
+dotnet run --project src/EconData.Cli -- lake status
+
+# Rebuild gold from silver without touching the network
+dotnet run --project src/EconData.Cli -- lake build-gold
+
+# Doctor reports lake health as a warning (not a blocker) when absent
+dotnet run --project src/EconData.Cli -- doctor
+```
+
+The Web UI mirrors this data: `/lake` shows tier state, `/api/lake/status` returns
+the same JSON the CLI prints, and `/api/overview` falls back to gold when SQLite is
+absent.
+
+---
+
 ## Scheduling
 
 Schedule the CLI directly. The pipeline is idempotent, so re-runs are safe.

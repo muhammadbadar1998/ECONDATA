@@ -50,6 +50,21 @@
                     <input class="form-check-input" type="checkbox" id="loadToDb" @bind="_loadToDb" disabled="@IsRunning" />
                     <label class="form-check-label" for="loadToDb">Load to DB</label>
                 </div>
+                <fieldset class="mb-3" disabled="@IsRunning">
+                    <legend class="form-label fs-6">Lake tiers</legend>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="tierBronze" @bind="_bronze" />
+                        <label class="form-check-label" for="tierBronze">Bronze (raw Parquet)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="tierSilver" @bind="_silver" />
+                        <label class="form-check-label" for="tierSilver">Silver (typed Parquet)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="tierGold" @bind="_gold" />
+                        <label class="form-check-label" for="tierGold">Gold (DuckDB)</label>
+                    </div>
+                </fieldset>
                 <div class="d-flex gap-2 flex-wrap">
                     <button class="btn btn-success" @onclick="() => StartAsync(JobKind.Extract)" disabled="@IsRunning">Extract</button>
                     <button class="btn btn-success" @onclick="() => StartAsync(JobKind.Vectorize)" disabled="@IsRunning">Vectorize</button>
@@ -213,6 +228,9 @@
     private JobStatus? _status;
     private string[] _selectedMetrics = Array.Empty<string>();
     private bool _loadToDb = true;
+    private bool _bronze;
+    private bool _silver;
+    private bool _gold;
     private bool _reembed;
     private bool _rendered;
     private bool _cancelPending;
@@ -338,7 +356,7 @@
         }
 
         var metrics = kind == JobKind.Extract && _selectedMetrics.Length > 0 ? _selectedMetrics : null;
-        var request = new JobRequest(kind, metrics, _loadToDb, _reembed);
+        var request = new JobRequest(kind, metrics, _loadToDb, _reembed, _bronze, _silver, _gold);
         try
         {
             using var response = await Http.PostAsJsonAsync("api/jobs", request);

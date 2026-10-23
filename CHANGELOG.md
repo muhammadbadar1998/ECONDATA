@@ -6,6 +6,25 @@ All notable changes to this project are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- Medallion ingestion: bronze (append-only raw Parquet), silver (typed Parquet, one
+  partition per metric, overwritten per run) and gold (DuckDB `dbe_*` tables + views)
+  under `output/lake/`. `extract` gains `--bronze`, `--silver`, `--gold`; `--db` still
+  means "load to SQLite" and a run with no tier flags never touches the lake.
+- `lake status` and `lake build-gold` CLI commands; `lake build-gold` rebuilds the
+  DuckDB gold tier from silver Parquet with no network access.
+- `GET /api/lake/status` plus a **Lake** page, a Lake card on Overview, tier checkboxes
+  on Runner, and a Tiers column on Runs.
+- `doctor` reports a `lake` check (tier presence, gold readability). A missing lake is a
+  warning, not a blocker.
+- `AnalyticsService` and the vector catalog read the DuckDB gold tier once it exists,
+  falling back to SQLite; public JSON shapes are unchanged.
+- `ECONDATA_LAKE_DIR` (default `./output/lake`) configures the lake root.
+- `sql/duckdb/schema.sql`: DuckDB DDL using sequences for surrogate ids and fully
+  qualified view columns.
+
+### Changed
+- `dbe_pipeline_runs.tiers_written` records which tiers a run wrote (SQLite gains the
+  column via an additive `ALTER TABLE` migration on existing databases).
 - `backup --to <path>` CLI command: consistent `VACUUM INTO` snapshot that needs no
   external `sqlite3` binary.
 - Derived aggregates layer: opt-in `aggregation` key (`sum`/`mean`, default `none`) in

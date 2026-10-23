@@ -1,0 +1,130 @@
+@page "/lake"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>Lake</PageTitle>
+
+<h1>Medallion Lake</h1>
+<p class="text-muted">Bronze → Silver → Gold ingestion state. Counts come from the files on disk.</p>
+
+@if (_status is null)
+{
+    <p class="empty-state">Loading lake status...</p>
+}
+else
+{
+    <p class="lake-directory"><code>@_status.DirectoryValue</code></p>
+
+    <div class="lake-grid">
+        @foreach (var tier in new[] { _status.Bronze, _status.Silver, _status.Gold })
+        {
+            <section class="lake-card" data-tier="@tier.Tier">
+                <header>
+                    <h2>@TierName(tier.Tier)</h2>
+                    <span class="badge @(tier.Present ? "bg-success" : "bg-secondary")">
+                        @(tier.Present ? "built" : "empty")
+                    </span>
+                </header>
+                <dl>
+                    <dt>Rows</dt>
+                    <dd>@tier.Rows</dd>
+                    <dt>Files</dt>
+                    <dd>@tier.Files</dd>
+                    <dt>Size</dt>
+                    <dd>@FormatBytes(tier.Bytes)</dd>
+                    <dt>Newest</dt>
+                    <dd>@(tier.Newest ?? "-")</dd>
+                </dl>
+                <p class="lake-detail">@tier.Detail</p>
+            </section>
+        }
+    </div>
+
+    <h2>Gold tables</h2>
+    @if (_status.Tables.Count == 0)
+    {
+        <p class="empty-state">Gold not built yet. Run <code>extract --gold</code> or <code>lake build-gold</code>.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Table</th>
+                        <th>Rows</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (name, rows) in _status.Tables)
+                    {
+                        <tr>
+                            <td><code>@name</code></td>
+                            <td>@rows</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <h2>Silver partitions</h2>
+    @if (_status.Partitions.Count == 0)
+    {
+        <p class="empty-state">No silver partitions yet. Run <code>extract --silver</code>.</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Rows</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (metric, rows) in _status.Partitions)
+                    {
+                        <tr>
+                            <td>@metric</td>
+                            <td>@rows</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private LakeStatus? _status;
+
+    // Deferred to the first interactive render: during prerender the scoped HttpClient
+    // has no base address, so a relative api/ call would fail.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _status is not null)
+        {
+            return;
+        }
+
+        _status = await Http.GetFromJsonAsync<LakeStatus>("api/lake/status");
+        StateHasChanged();
+    }
+
+    private static string TierName(string tier) => tier switch
+    {
+        "bronze" => "Bronze (raw Parquet)",
+        "silver" => "Silver (typed Parquet)",
+        "gold" => "Gold (DuckDB)",
+        _ => tier,
+    };
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1024L * 1024L => $"{bytes / (1024d * 1024d):F1} MB",
+        >= 1024L => $"{bytes / 1024d:F1} KB",
+        _ => $"{bytes} B",
+    };
+}

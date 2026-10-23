@@ -12,6 +12,7 @@ public sealed class AppConfig
 {
     public const string DefaultSqlitePath = "./output/econdata.db";
     public const string DefaultOutputDir = "./output";
+    public const string DefaultLakeDir = "./output/lake";
     public const string DefaultMetricsConfigPath = "./config/metrics.json";
     public const string DefaultEntitiesConfigPath = "./config/entities.json";
     public const string DefaultOllamaHost = "http://127.0.0.1:11434";
@@ -24,6 +25,7 @@ public sealed class AppConfig
 
     public string SqlitePath { get; init; } = DefaultSqlitePath;
     public string OutputDir { get; init; } = DefaultOutputDir;
+    public string LakeDir { get; init; } = DefaultLakeDir;
     public string MetricsConfigPath { get; init; } = DefaultMetricsConfigPath;
     public string EntitiesConfigPath { get; init; } = DefaultEntitiesConfigPath;
     public string DbNomicsBaseUrl { get; init; } = DefaultDbNomicsBaseUrl;
@@ -48,6 +50,7 @@ public sealed class AppConfig
         {
             SqlitePath = configuration["ECONDATA_SQLITE_PATH"] ?? DefaultSqlitePath,
             OutputDir = configuration["OUTPUT_DIR"] ?? DefaultOutputDir,
+            LakeDir = configuration["ECONDATA_LAKE_DIR"] ?? DefaultLakeDir,
             MetricsConfigPath = configuration["CONFIG_PATH"] ?? DefaultMetricsConfigPath,
             EntitiesConfigPath = configuration["ECONDATA_ENTITIES_PATH"] ?? DefaultEntitiesConfigPath,
             DbNomicsBaseUrl = (configuration["DBNOMICS_BASE_URL"] ?? DefaultDbNomicsBaseUrl).TrimEnd('/'),

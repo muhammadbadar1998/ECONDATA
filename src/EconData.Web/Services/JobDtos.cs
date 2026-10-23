@@ -15,7 +15,10 @@ public sealed record JobRequest(
     [property: JsonPropertyName("kind")] JobKind Kind,
     [property: JsonPropertyName("metrics")] IReadOnlyList<string>? Metrics,
     [property: JsonPropertyName("load_to_db")] bool LoadToDb,
-    [property: JsonPropertyName("reembed")] bool Reembed);
+    [property: JsonPropertyName("reembed")] bool Reembed,
+    [property: JsonPropertyName("bronze")] bool Bronze = false,
+    [property: JsonPropertyName("silver")] bool Silver = false,
+    [property: JsonPropertyName("gold")] bool Gold = false);
 
 public sealed record JobProgressUpdate(
     [property: JsonPropertyName("phase")] string Phase,

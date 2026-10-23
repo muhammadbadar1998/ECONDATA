@@ -52,4 +52,12 @@ public class AppConfigTests
         var config = FromSettings(new Dictionary<string, string?> { ["OLLAMA_TIMEOUT"] = "not-a-number" });
         Assert.Equal(60, config.OllamaTimeout);
     }
+
+    [Fact]
+    public void DefaultsHaveSqliteVecPathAndV1LlmBaseUrl()
+    {
+        var config = FromSettings(new Dictionary<string, string?>());
+        Assert.False(string.IsNullOrEmpty(AppConfig.DefaultSqliteVecExtensionPath));
+        Assert.EndsWith("/v1", AppConfig.DefaultLlmBaseUrl);
+    }
 }

@@ -5,6 +5,7 @@ using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
 using EconData.Core.Extraction;
+using EconData.Core.Lake;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
@@ -21,6 +22,8 @@ public sealed class PipelineJobExecutor : IJobExecutor
     private readonly VectorStore _vectorStore;
     private readonly string _schemaPath;
     private readonly Serilog.ILogger _logger;
+    private readonly LakePaths? _lake;
+    private readonly GoldTier? _gold;
 
     public PipelineJobExecutor(
         SqliteConnectionFactory factory,
@@ -31,7 +34,9 @@ public sealed class PipelineJobExecutor : IJobExecutor
         IEmbedder embedder,
         VectorStore vectorStore,
         string schemaPath,
-        Serilog.ILogger logger)
+        Serilog.ILogger logger,
+        LakePaths? lake = null,
+        GoldTier? gold = null)
     {
         _factory = factory;
         _schemaInitializer = schemaInitializer;
@@ -42,6 +47,8 @@ public sealed class PipelineJobExecutor : IJobExecutor
         _vectorStore = vectorStore;
         _schemaPath = schemaPath;
         _logger = logger;
+        _lake = lake;
+        _gold = gold;
     }
 
     public async Task<JobResult> ExecuteAsync(
@@ -124,7 +131,8 @@ public sealed class PipelineJobExecutor : IJobExecutor
             _factory,
             _schemaPath,
             _source,
-            _logger);
+            _logger,
+            lake: _lake);
         var adapter = new Progress<PipelineProgress>(p =>
         {
             progress.Report(new JobProgressUpdate(
@@ -140,7 +148,12 @@ public sealed class PipelineJobExecutor : IJobExecutor
                 p.ElapsedSeconds,
                 p.Kind == PipelineProgressKind.MetricStarted ? "running" : "done"));
         });
-        var summary = await runner.RunAsync(metrics, request.LoadToDb, adapter, cancellationToken).ConfigureAwait(false);
+        var tiers = request.Bronze || request.Silver || request.Gold
+            ? new PipelineTiers(request.Bronze, request.Silver, request.Gold)
+            : null;
+        var summary = tiers is null
+            ? await runner.RunAsync(metrics, request.LoadToDb, adapter, cancellationToken).ConfigureAwait(false)
+            : await runner.RunAsync(metrics, request.LoadToDb, tiers, adapter, cancellationToken).ConfigureAwait(false);
         if (summary.FailedMetrics.Count > 0)
         {
             throw new InvalidOperationException($"Extraction failed for: {string.Join(", ", summary.FailedMetrics)}");
@@ -150,7 +163,7 @@ public sealed class PipelineJobExecutor : IJobExecutor
 
     private async Task<JobResult> VectorizeAsync(JobRequest request, IProgress<JobProgressUpdate> progress, CancellationToken cancellationToken)
     {
-        var vectorizer = new Vectorizer(_catalog, _seed, _factory, _vectorStore, _embedder, forceReembed: request.Reembed, _logger);
+        var vectorizer = new Vectorizer(_catalog, _seed, _factory, _vectorStore, _embedder, forceReembed: request.Reembed, _logger, _gold);
         var adapter = new Progress<VectorizeProgress>(p =>
         {
             progress.Report(new JobProgressUpdate(

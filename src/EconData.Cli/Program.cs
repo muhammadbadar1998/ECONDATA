@@ -1,4 +1,5 @@
 using EconData.Core.Ai;
+using EconData.Core.Analytics;
 using EconData.Core.Catalog;
 using EconData.Core.Cli;
 using EconData.Core.Cli.Chat;
@@ -7,6 +8,7 @@ using EconData.Core.Data;
 using EconData.Core.Diagnostics;
 using EconData.Core.Entities;
 using EconData.Core.Extraction;
+using EconData.Core.Lake;
 using EconData.Core.Logging;
 using EconData.Core.Rag;
 using Microsoft.Data.Sqlite;
@@ -43,6 +45,7 @@ internal static class Program
                 "backup" => BackupDb(config, root, options, logger),
                 "doctor" => await DoctorAsync(config, root, logger).ConfigureAwait(false),
                 "extract" => await ExtractAsync(config, root, options, logger).ConfigureAwait(false),
+                "lake" => await LakeAsync(config, root, options, logger).ConfigureAwait(false),
                 "vectorize" => await VectorizeAsync(config, root, options, logger).ConfigureAwait(false),
                 "chat" => await ChatAsync(config, root, options, logger).ConfigureAwait(false),
                 _ => UnknownCommand(command),
@@ -150,6 +153,88 @@ internal static class Program
         return report.HasBlockers ? 1 : 0;
     }
 
+    /// <summary>Builds the tier plan from <c>--bronze/--silver/--gold</c>; null keeps legacy behaviour.</summary>
+    private static PipelineTiers? ResolveTiers(Arguments options)
+    {
+        var bronze = options.Has("bronze");
+        var silver = options.Has("silver");
+        var gold = options.Has("gold") || options.Has("db");
+        return bronze || silver || gold ? new PipelineTiers(bronze, silver, gold) : null;
+    }
+
+    private static async Task<int> LakeAsync(AppConfig config, string root, Arguments options, ILogger logger)
+    {
+        var action = options.Positional.FirstOrDefault()?.ToLowerInvariant() ?? "status";
+        var lake = LakePaths.Resolve(root, config.LakeDir);
+        var gold = new GoldTier(lake.GoldPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger);
+
+        switch (action)
+        {
+            case "status":
+                {
+                    var status = await new LakeStatusService(lake, gold, logger).GetAsync().ConfigureAwait(false);
+                    Console.WriteLine($"Lake: {status.Directory}");
+                    foreach (var tier in new[] { status.Bronze, status.Silver, status.Gold })
+                    {
+                        Console.WriteLine(
+                            $"  {tier.Tier,-7} present={tier.Present,-5} rows={tier.Rows,-8} files={tier.Files,-4} bytes={tier.Bytes,-10} newest={tier.Newest ?? "-"} detail={tier.Detail}");
+                        foreach (var (name, rows) in tier.Tier == "gold" ? status.Tables : status.Partitions)
+                        {
+                            Console.WriteLine($"          {name} = {rows}");
+                        }
+                    }
+
+                    return 0;
+                }
+
+            case "build-gold":
+                {
+                    var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+                    var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+                    gold.EnsureSchema();
+                    var silver = new SilverTier(lake, logger);
+                    var partitions = silver.Partitions();
+                    if (partitions.Count == 0)
+                    {
+                        Console.WriteLine("No silver partitions found. Run `extract --silver` first.");
+                        return 1;
+                    }
+
+                    gold.SeedEntities(seed.Entities, seed.Aliases);
+                    gold.SeedMemberships(seed.Memberships);
+                    var records = EconData.Core.Transform.DataTransformer.CreateMetricsRecords(catalog);
+                    gold.UpsertMetrics(records);
+                    var (metricIdsBeforeSources, _) = gold.GetMetricAndSourceIds();
+                    gold.UpsertSources(records, metricIdsBeforeSources);
+                    var (metricIds, sourceIds) = gold.GetMetricAndSourceIds();
+
+                    var total = 0;
+                    foreach (var code in partitions.Where(metricIds.ContainsKey))
+                    {
+                        var rows = await silver.ReadAsync(code).ConfigureAwait(false);
+                        total += gold.UpsertObservations(code, rows, metricIds[code], sourceIds[code]);
+                    }
+
+                    foreach (var code in partitions.Where(metricIds.ContainsKey))
+                    {
+                        var metric = catalog.Get(code);
+                        if (metric is not null && metric.Aggregation is "sum" or "mean")
+                        {
+                            gold.Aggregate(code, metric.Aggregation, metric.EffectiveBaseUnit, metricIds);
+                        }
+                    }
+
+                    gold.RecordRun("econdata_manual", "build_gold", partitions.Count, total, 0, new List<string>(), sourceIds.Values.ToList(), "SUCCESS", 0, "G");
+                    Console.WriteLine($"Gold rebuilt from {partitions.Count} silver partitions: {total} observations.");
+                    return 0;
+                }
+
+            default:
+                Console.WriteLine("Usage: lake [status|build-gold]");
+                return 1;
+        }
+    }
+
     private static async Task<int> ExtractAsync(AppConfig config, string root, Arguments options, ILogger logger)
     {
         var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
@@ -165,15 +250,21 @@ internal static class Program
         var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
         using var http = new HttpClient();
         var source = new DBnomicsExtractor(http, config.DbNomicsBaseUrl, logger: logger);
+        var lake = LakePaths.Resolve(root, config.LakeDir);
+        lake.EnsureDirectories();
         var runner = new PipelineRunner(
             catalog,
             seed,
             factory,
             CliPaths.Resolve(root, options.Value("schema", DefaultSchemaPath)!),
             source,
-            logger);
+            logger,
+            lake: lake);
 
-        var summary = await runner.RunAsync(metrics, options.Has("db")).ConfigureAwait(false);
+        var tiers = ResolveTiers(options);
+        var summary = tiers is null
+            ? await runner.RunAsync(metrics, options.Has("db")).ConfigureAwait(false)
+            : await runner.RunAsync(metrics, options.Has("db"), tiers).ConfigureAwait(false);
         Console.WriteLine(
             $"Extraction complete: {summary.TotalObservations} observations, {summary.ObservationsUpserted} upserted in {summary.ExecutionSeconds:F2}s.");
         if (summary.FailedMetrics.Count > 0)

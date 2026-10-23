@@ -2,6 +2,7 @@ using EconData.Core.Ai;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
+using EconData.Core.Lake;
 using Microsoft.Data.Sqlite;
 using Serilog;
 using Serilog.Core;
@@ -31,6 +32,7 @@ public sealed class Vectorizer : IDocumentSearcher
     private readonly IEmbedder _embedder;
     private readonly bool _forceReembed;
     private readonly ILogger _logger;
+    private readonly GoldTier? _gold;
 
     public Vectorizer(
         MetricsCatalog catalog,
@@ -39,7 +41,8 @@ public sealed class Vectorizer : IDocumentSearcher
         VectorStore store,
         IEmbedder embedder,
         bool forceReembed = false,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        GoldTier? gold = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(seed);
@@ -53,6 +56,7 @@ public sealed class Vectorizer : IDocumentSearcher
         _embedder = embedder;
         _forceReembed = forceReembed;
         _logger = logger ?? Logger.None;
+        _gold = gold;
     }
 
     // ---- Document builders (pure, testable) ----
@@ -182,7 +186,7 @@ public sealed class Vectorizer : IDocumentSearcher
         {
             coverageDocuments = BuildEntityMetricDocuments(FetchCoverage(recentPoints)).ToList();
         }
-        catch (SqliteException ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.Warning("Skipping entity_metric documents: {Message}", ex.Message);
         }
@@ -318,23 +322,10 @@ public sealed class Vectorizer : IDocumentSearcher
     // ---- Coverage query ----
     private List<Dictionary<string, object?>> FetchCoverage(int recentPoints)
     {
-        using var connection = _factory.Open();
-        var metrics = LoadLookup(connection, "SELECT metric_id, metric_code, metric_name, frequency, base_unit FROM dbe_metrics");
-        var entities = LoadLookup(connection, "SELECT entity_id, entity_code, entity_name FROM dbe_entities");
-
-        var baseRows = new List<BaseObservation>();
-        using (var command = connection.CreateCommand())
-        {
-            command.CommandText =
-                "SELECT o.metric_id, o.entity_id, o.start_date, CAST(strftime('%Y', o.start_date) AS INTEGER) AS year, o.val " +
-                "FROM dbe_observations o JOIN dbe_entities e ON e.entity_id = o.entity_id " +
-                "WHERE e.is_active = 1 AND o.val IS NOT NULL";
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                baseRows.Add(new BaseObservation(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2), reader.GetInt32(3), reader.GetDouble(4)));
-            }
-        }
+        // Gold (DuckDB) is the data store once a lake exists; SQLite still holds vectors
+        // and remains the source for pre-lake databases.
+        var useGold = _gold is not null && _gold.Exists;
+        var (metrics, entities, baseRows) = useGold ? ReadGoldCoverage() : ReadSqliteCoverage();
 
         var take = Math.Max(1, recentPoints);
         var rows = new List<Dictionary<string, object?>>();
@@ -383,6 +374,70 @@ public sealed class Vectorizer : IDocumentSearcher
             .OrderBy(row => (string)row["entity_code"]!, StringComparer.Ordinal)
             .ThenBy(row => (string)row["metric_code"]!, StringComparer.Ordinal)
             .ToList();
+    }
+
+    private (Dictionary<int, NameLookup> Metrics, Dictionary<int, NameLookup> Entities, List<BaseObservation> Rows) ReadSqliteCoverage()
+    {
+        using var connection = _factory.Open();
+        var metrics = LoadLookup(connection, "SELECT metric_id, metric_code, metric_name, frequency, base_unit FROM dbe_metrics");
+        var entities = LoadLookup(connection, "SELECT entity_id, entity_code, entity_name FROM dbe_entities");
+        var rows = new List<BaseObservation>();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT o.metric_id, o.entity_id, o.start_date, CAST(strftime('%Y', o.start_date) AS INTEGER) AS year, o.val " +
+            "FROM dbe_observations o JOIN dbe_entities e ON e.entity_id = o.entity_id " +
+            "WHERE e.is_active = 1 AND o.val IS NOT NULL";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            rows.Add(new BaseObservation(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2), reader.GetInt32(3), reader.GetDouble(4)));
+        }
+
+        return (metrics, entities, rows);
+    }
+
+    private (Dictionary<int, NameLookup> Metrics, Dictionary<int, NameLookup> Entities, List<BaseObservation> Rows) ReadGoldCoverage()
+    {
+        using var connection = _gold!.OpenReadOnly();
+        var metrics = new Dictionary<int, NameLookup>();
+        var entities = new Dictionary<int, NameLookup>();
+        var rows = new List<BaseObservation>();
+
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT metric_id, metric_code, metric_name, frequency, base_unit FROM dbe_metrics";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                metrics[reader.GetInt32(0)] = new NameLookup(reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
+            }
+        }
+
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT entity_id, entity_code, entity_name FROM dbe_entities";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                entities[reader.GetInt32(0)] = new NameLookup(reader.GetString(1), reader.GetString(2), "Annual", string.Empty);
+            }
+        }
+
+        using (var command = connection.CreateCommand())
+        {
+            // start_date is VARCHAR; DuckDB requires an explicit cast before strftime.
+            command.CommandText =
+                "SELECT o.metric_id, o.entity_id, o.start_date, CAST(strftime(CAST(o.start_date AS TIMESTAMP), '%Y') AS INTEGER) AS year, o.val " +
+                "FROM dbe_observations o JOIN dbe_entities e ON e.entity_id = o.entity_id " +
+                "WHERE e.is_active = 1 AND o.val IS NOT NULL";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                rows.Add(new BaseObservation(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2), reader.GetInt32(3), reader.GetDouble(4)));
+            }
+        }
+
+        return (metrics, entities, rows);
     }
 
     private static Dictionary<int, NameLookup> LoadLookup(SqliteConnection connection, string sql)

@@ -26,6 +26,31 @@ else
         }
     </div>
 
+    <h2 class="mt-4">Lake</h2>
+    @if (_lake is null)
+    {
+        <p class="empty-state">Loading lake status...</p>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex gap-3 flex-wrap align-items-center">
+                    @foreach (var tier in new[] { _lake.Bronze, _lake.Silver, _lake.Gold })
+                    {
+                        <span class="badge @(tier.Present ? "bg-success" : "bg-secondary")" data-tier="@tier.Tier">
+                            @tier.Tier: @(tier.Present ? $"{tier.Rows:N0} rows" : "not built")
+                        </span>
+                    }
+                </div>
+                <p class="mt-2 mb-0 text-muted">
+                    Newest: @(_lake.Gold.Newest ?? _lake.Silver.Newest ?? _lake.Bronze.Newest ?? "-")
+                    &middot; <a href="lake">Open Lake page</a>
+                </p>
+            </div>
+        </div>
+    }
+
     <h2 class="mt-4">Latest pipeline run</h2>
     @if (_stats.LastRunStatus is null)
     {
@@ -42,11 +67,18 @@ else
 
 @code {
     private OverviewStats? _stats;
+    private LakeStatus? _lake;
     private List<Tile> _tiles = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!firstRender || _stats is not null)
+        {
+            return;
+        }
+
         _stats = await Http.GetFromJsonAsync<OverviewStats>("api/overview");
+        _lake = await Http.GetFromJsonAsync<LakeStatus>("api/lake/status");
 
         if (_stats is not null)
         {
@@ -60,6 +92,7 @@ else
                 new Tile("Embeddings", _stats.EmbeddingCount.ToString("N0")),
                 new Tile("Memberships", _stats.MembershipCount.ToString("N0")),
             };
+            StateHasChanged();
         }
     }
 

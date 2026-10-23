@@ -333,7 +333,8 @@ public sealed class DatabaseLoader
         IReadOnlyList<string> providers,
         IReadOnlyList<int> sourceIds,
         string status,
-        double executionSeconds)
+        double executionSeconds,
+        string? tiersWritten = null)
     {
         ArgumentNullException.ThrowIfNull(providers);
         ArgumentNullException.ThrowIfNull(sourceIds);
@@ -343,8 +344,8 @@ public sealed class DatabaseLoader
             using var connection = _factory.Open();
             using var command = connection.CreateCommand();
             command.CommandText =
-                "INSERT INTO dbe_pipeline_runs (dag_id, task_id, metrics_extracted, observations_upserted, observations_skipped, providers, source_ids, status, execution_seconds) " +
-                "VALUES (@dag, @task, @metrics, @upserted, @skipped, @providers, @sources, @status, @seconds)";
+                "INSERT INTO dbe_pipeline_runs (dag_id, task_id, metrics_extracted, observations_upserted, observations_skipped, providers, source_ids, status, execution_seconds, tiers_written) " +
+                "VALUES (@dag, @task, @metrics, @upserted, @skipped, @providers, @sources, @status, @seconds, @tiers)";
             command.Parameters.AddWithValue("@dag", dagId);
             command.Parameters.AddWithValue("@task", taskId);
             command.Parameters.AddWithValue("@metrics", metricsExtracted);
@@ -354,6 +355,7 @@ public sealed class DatabaseLoader
             command.Parameters.AddWithValue("@sources", JsonSerializer.Serialize(sourceIds));
             command.Parameters.AddWithValue("@status", status);
             command.Parameters.AddWithValue("@seconds", executionSeconds);
+            command.Parameters.AddWithValue("@tiers", (object?)tiersWritten ?? DBNull.Value);
             command.ExecuteNonQuery();
             _logger.Information("Pipeline run audit logged into dbe_pipeline_runs.");
         }

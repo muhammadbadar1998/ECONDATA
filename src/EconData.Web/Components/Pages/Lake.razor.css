@@ -1,0 +1,57 @@
+.lake-directory {
+    margin-bottom: 1rem;
+    color: #6c757d;
+}
+
+.lake-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.lake-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.5rem;
+    background: #fff;
+}
+
+.lake-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.lake-card header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.lake-card dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.75rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.lake-card dt {
+    font-weight: 600;
+    color: #495057;
+}
+
+.lake-card dd {
+    margin: 0;
+    text-align: right;
+}
+
+.lake-detail {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6c757d;
+}

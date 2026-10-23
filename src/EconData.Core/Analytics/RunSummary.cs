@@ -10,4 +10,5 @@ public sealed record RunSummary(
     [property: JsonPropertyName("execution_seconds")] double ExecutionSeconds,
     [property: JsonPropertyName("metrics_extracted")] int MetricsExtracted,
     [property: JsonPropertyName("observations_upserted")] int ObservationsUpserted,
-    [property: JsonPropertyName("observations_skipped")] int ObservationsSkipped);
+    [property: JsonPropertyName("observations_skipped")] int ObservationsSkipped,
+    [property: JsonPropertyName("tiers_written")] string? TiersWritten);

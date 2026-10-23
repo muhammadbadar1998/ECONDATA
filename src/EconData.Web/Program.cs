@@ -7,6 +7,7 @@ using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
 using EconData.Core.Extraction;
+using EconData.Core.Lake;
 using EconData.Core.Logging;
 using EconData.Core.Rag;
 using EconData.Web.Components;
@@ -44,7 +45,23 @@ builder.Services.AddSingleton(logSink);
 builder.Services.AddSingleton(_ => new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath)));
 builder.Services.AddSingleton(_ => MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath)));
 builder.Services.AddSingleton(_ => EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath)));
-builder.Services.AddSingleton<AnalyticsService>();
+builder.Services.AddSingleton(sp =>
+{
+    var paths = LakePaths.Resolve(root, config.LakeDir);
+    paths.EnsureDirectories();
+    return paths;
+});
+builder.Services.AddSingleton(sp => new GoldTier(
+    sp.GetRequiredService<LakePaths>().GoldPath,
+    CliPaths.Resolve(root, "sql/duckdb/schema.sql"),
+    logger));
+builder.Services.AddSingleton<AnalyticsService>(sp => new AnalyticsService(
+    sp.GetRequiredService<SqliteConnectionFactory>(),
+    sp.GetRequiredService<GoldTier>()));
+builder.Services.AddSingleton(sp => new LakeStatusService(
+    sp.GetRequiredService<LakePaths>(),
+    sp.GetRequiredService<GoldTier>(),
+    logger));
 builder.Services.AddSingleton<ISeriesSource>(_ => new DBnomicsExtractor(new HttpClient(), config.DbNomicsBaseUrl, logger: logger));
 builder.Services.AddSingleton<IEmbedder>(_ => new OllamaEmbedder(config, new HttpClient(), logger));
 builder.Services.AddSingleton(sp => new VectorStore(sp.GetRequiredService<SqliteConnectionFactory>(), vecPath, logger));
@@ -58,7 +75,9 @@ builder.Services.AddSingleton<IJobExecutor>(sp => new PipelineJobExecutor(
     sp.GetRequiredService<IEmbedder>(),
     sp.GetRequiredService<VectorStore>(),
     schemaPath,
-    logger));
+    logger,
+    sp.GetRequiredService<LakePaths>(),
+    sp.GetRequiredService<GoldTier>()));
 builder.Services.AddSingleton<JobService>();
 builder.Services.AddSingleton(_ => new DashboardLayoutStore(
     Path.Combine(CliPaths.Resolve(root, config.OutputDir), "dashboards.json")));
@@ -104,7 +123,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapGet("/api/overview", (AnalyticsService analytics, SqliteConnectionFactory db) =>
 {
-    if (!File.Exists(db.DatabasePath))
+    if (!File.Exists(db.DatabasePath) && !analytics.UsesGold)
     {
         return Results.Json(new { error = "database not initialized" }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -116,6 +135,7 @@ app.MapGet("/api/series", (AnalyticsService analytics, string entity, string met
 app.MapGet("/api/snapshot", (AnalyticsService analytics, string? entity, string? metric, string? category, int limit = 200) => Results.Ok(analytics.GetLatestSnapshot(entity, metric, category, limit)));
 app.MapGet("/api/entities", (AnalyticsService analytics, string? q, string? type, int limit = 500) => Results.Ok(analytics.GetEntities(q, type, limit)));
 app.MapGet("/api/runs", (AnalyticsService analytics, int limit = 50) => Results.Ok(analytics.GetRuns(limit)));
+app.MapGet("/api/lake/status", async (LakeStatusService lake) => Results.Ok(await lake.GetAsync()));
 
 app.MapGet("/api/catalog/metrics", (MetricsCatalog catalog) => Results.Ok(catalog.ByCode
     .Select(pair => new MetricItem(pair.Key, pair.Value.MetricName, pair.Value.Category, pair.Value.Frequency))

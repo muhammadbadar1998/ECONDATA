@@ -4,6 +4,7 @@ using EconData.Core.Cli;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
+using EconData.Core.Lake;
 using Microsoft.Data.Sqlite;
 using Serilog;
 using Serilog.Core;
@@ -129,6 +130,7 @@ public sealed class DiagnosticsService
 
         // 6. Vector extension
         await RunVectorCheckAsync(checks).ConfigureAwait(false);
+        AddLakeCheck(checks);
 
         try
         {
@@ -159,6 +161,41 @@ public sealed class DiagnosticsService
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT sql FROM sqlite_master WHERE type='view' AND name='v_latest_metrics_snapshot';";
         return Convert.ToString(command.ExecuteScalar(), CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    /// <summary>Reports lake tier presence. A missing lake is a warning, not a blocker.</summary>
+    private void AddLakeCheck(List<CheckResult> checks)
+    {
+        var paths = LakePaths.Resolve(Directory.GetCurrentDirectory(), _config.LakeDir);
+        try
+        {
+            if (!paths.GoldExists && !paths.BronzeExists && !paths.SilverExists)
+            {
+                checks.Add(new CheckResult("lake", Diagnosis.Warn, "lake not built; run `extract --bronze --silver --gold`"));
+                return;
+            }
+
+            var tiers = string.Join(", ", new[]
+            {
+                paths.BronzeExists ? "bronze" : null,
+                paths.SilverExists ? "silver" : null,
+                paths.GoldExists ? "gold" : null,
+            }.Where(t => t is not null));
+
+            using (var connection = new DuckDB.NET.Data.DuckDBConnection($"Data Source={paths.GoldPath};ACCESS_MODE=READ_ONLY"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT count(*) FROM dbe_observations";
+                Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+
+            checks.Add(new CheckResult("lake", Diagnosis.Pass, $"tiers: {tiers}"));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            checks.Add(new CheckResult("lake", Diagnosis.Warn, ex.Message));
+        }
     }
 
     private Task RunVectorCheckAsync(List<CheckResult> checks)

@@ -164,6 +164,7 @@ win), with compiled defaults. None are secrets — the store is a local file.
 | :--- | :--- | :--- |
 | `ECONDATA_SQLITE_PATH` | `./output/econdata.db` | SQLite database file |
 | `OUTPUT_DIR` | `./output` | Log directory |
+| `ECONDATA_LAKE_DIR` | `./output/lake` | Medallion lake root (bronze/silver/gold) |
 | `ECONDATA_SQLITE_VEC_PATH` | `./native/sqlite-vec/<rid>/vec0.{dll,so,dylib}` | sqlite-vec extension |
 | `CONFIG_PATH` | `./config/metrics.json` | Metric catalog |
 | `ECONDATA_ENTITIES_PATH` | `./config/entities.json` | Entity/alias/membership seed |
@@ -183,6 +184,35 @@ win), with compiled defaults. None are secrets — the store is a local file.
 
 `LLM_TIMEOUT` is deliberately separate from `OLLAMA_TIMEOUT`: chat completions
 generate tokens and are far slower than embedding calls.
+
+## Medallion lake
+
+Data can be staged as bronze → silver → gold (`src/EconData.Core/Lake/`):
+
+| Tier | Class | Storage | Semantics |
+| :--- | :--- | :--- | :--- |
+| Bronze | `BronzeTier` | `bronze/<provider>/<dataset>/<metric>/<run>.parquet` | Append-only; one row per `RawSeries` with JSON `dimensions`/`periods`/`values` |
+| Silver | `SilverTier` | `silver/<metric>.parquet` | Whole-partition overwrite from `DataTransformer` output |
+| Gold | `GoldTier` | `gold/econdata.duckdb` | DuckDB `dbe_*` tables + views; chunked `ON CONFLICT` upserts |
+
+`PipelineRunner.RunAsync(metrics, loadToDb, PipelineTiers?)` drives all three with
+four section banners (Setup / per-metric Extract→Bronze→Silver / Gold / Audit). With no
+`PipelineTiers` the runner keeps the pre-lake contract: SQLite only, lake untouched.
+
+DuckDB constraints that shaped the implementation:
+
+- Surrogate ids use `CREATE SEQUENCE` + `DEFAULT nextval(...)`; DuckDB's
+  `INTEGER PRIMARY KEY` is **not** auto-increment.
+- All view columns must be qualified — DuckDB rejects ambiguous references that
+  SQLite resolved silently.
+- `DuckDB.NET` binds **only positional `?`** placeholders and has no
+  `AddWithValue`; use `new DuckDBParameter { Value = ... }`.
+- No `FOREIGN KEY` constraints: DuckDB's `ON CONFLICT` rewrites rows, which trips FK
+  checks on an idempotent re-seed. Natural `UNIQUE` keys provide the stability.
+- `strftime` needs a real temporal type, so `VARCHAR` dates are cast first.
+
+`AnalyticsService` reads gold through `GoldTier.OpenReadOnly()` when the gold file
+exists and falls back to SQLite otherwise, so the `/api/*` JSON contract is unchanged.
 
 ## Logging
 

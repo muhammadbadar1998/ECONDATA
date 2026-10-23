@@ -80,8 +80,32 @@ dotnet run --project src/EconData.Cli -- chat --question "What is the latest US 
 
 Common options: `--config PATH`, `--db-path PATH`, `--entities PATH`,
 `--vec PATH`, `--output-dir DIR`. `extract` also accepts
-`--metrics all|gdp_usd,population` and `--db`; `vectorize` accepts `--reembed`;
+`--metrics all|gdp_usd,population`, `--db`, and the lake tier flags
+`--bronze --silver --gold`; `vectorize` accepts `--reembed`;
 `chat` accepts `--k N --show-sources --system FILE`.
+
+### Medallion lake
+
+Data can be staged through a medallion layout instead of a single SQLite load:
+
+```bash
+# All three tiers, one pass
+dotnet run --project src/EconData.Cli -- extract --metrics all --bronze --silver --gold
+
+# Inspect and rebuild the serving tier without the network
+dotnet run --project src/EconData.Cli -- lake status
+dotnet run --project src/EconData.Cli -- lake build-gold
+```
+
+| Tier | Location | Format | Refresh |
+| :--- | :--- | :--- | :--- |
+| Bronze | `output/lake/bronze/<provider>/<dataset>/<metric>/` | Parquet, raw series | Append-only, one file per run |
+| Silver | `output/lake/silver/<metric>.parquet` | Parquet, typed observations | Partition overwritten per run |
+| Gold | `output/lake/gold/econdata.duckdb` | DuckDB `dbe_*` tables + views | Idempotent upsert from silver |
+
+A run with no tier flags keeps the original behaviour and writes only SQLite. Once
+gold exists, `AnalyticsService` and `vectorize` read from it; SQLite keeps the
+`sqlite-vec` tables. Set `ECONDATA_LAKE_DIR` to relocate the lake.
 
 ## Web UI
 
@@ -97,7 +121,8 @@ dotnet run --project src/EconData.Web
 | `/data` | Series explorer and latest snapshot |
 | `/metrics` | Per-metric coverage and year ranges |
 | `/entities` | Searchable entity registry |
-| `/runs` | Pipeline run history |
+| `/runs` | Pipeline run history, including which tiers each run wrote |
+| `/lake` | Bronze/silver/gold state: rows, files, size, newest, gold tables |
 | `/builder` | Drag/resize ECharts widgets; layout saved to `output/dashboards.json` |
 
 The app is localhost-only, single-user, and runs one pipeline job at a time.

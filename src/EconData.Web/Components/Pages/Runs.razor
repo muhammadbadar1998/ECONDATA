@@ -29,6 +29,7 @@ else
                     <th>Metrics Extracted</th>
                     <th>Observations Upserted</th>
                     <th>Observations Skipped</th>
+                    <th>Tiers</th>
                 </tr>
             </thead>
             <tbody>
@@ -44,6 +45,7 @@ else
                         <td>@run.MetricsExtracted</td>
                         <td>@run.ObservationsUpserted</td>
                         <td>@run.ObservationsSkipped</td>
+                        <td>@(string.IsNullOrEmpty(run.TiersWritten) ? "-" : run.TiersWritten)</td>
                     </tr>
                 }
             </tbody>

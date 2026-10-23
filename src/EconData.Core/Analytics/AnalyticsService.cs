@@ -1,34 +1,43 @@
 using System.Globalization;
 using EconData.Core.Data;
-using Microsoft.Data.Sqlite;
+using EconData.Core.Lake;
 
 namespace EconData.Core.Analytics;
 
 /// <summary>
-/// Read-only analytics over the normalized <c>dbe_*</c> tables,
-/// backing the web dashboard's JSON endpoints.
+/// Read-only analytics over the normalized <c>dbe_*</c> tables, backing the web
+/// dashboard's JSON endpoints. Reads the DuckDB gold tier when one is configured and
+/// falls back to the SQLite database, so both the lake-era and vector-era layouts work.
 /// </summary>
 public sealed class AnalyticsService
 {
     private readonly SqliteConnectionFactory _factory;
+    private readonly GoldTier? _gold;
 
-    public AnalyticsService(SqliteConnectionFactory factory)
+    public AnalyticsService(SqliteConnectionFactory factory, GoldTier? gold = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
         _factory = factory;
+        _gold = gold;
     }
+
+    /// <summary>True when analytics read the DuckDB gold tier rather than SQLite.</summary>
+    public bool UsesGold => _gold is not null && _gold.Exists;
+
+    private AnalyticsConnection Open()
+        => UsesGold
+            ? AnalyticsConnection.Gold(_gold!.OpenReadOnly())
+            : AnalyticsConnection.Sqlite(_factory.OpenReadOnly());
 
     public OverviewStats GetOverview()
     {
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
 
         string? lastStatus = null;
         string? lastTimestamp = null;
         using (var command = connection.CreateCommand())
         {
-            command.CommandText =
-                "SELECT status, run_timestamp FROM dbe_pipeline_runs " +
-                "ORDER BY run_id DESC LIMIT 1;";
+            command.CommandText = "SELECT status, run_timestamp FROM dbe_pipeline_runs ORDER BY run_id DESC LIMIT 1;";
             using var reader = command.ExecuteReader();
             if (reader.Read())
             {
@@ -43,7 +52,7 @@ public sealed class AnalyticsService
             MetricCount: ScalarInt(connection, "SELECT COUNT(*) FROM dbe_metrics;"),
             SourceCount: ScalarInt(connection, "SELECT COUNT(*) FROM dbe_sources;"),
             ObservationCount: ScalarLong(connection, "SELECT COUNT(*) FROM dbe_observations;"),
-            EmbeddingCount: ScalarInt(connection, "SELECT COUNT(*) FROM dbe_embeddings;"),
+            EmbeddingCount: UsesGold ? 0 : ScalarInt(connection, "SELECT COUNT(*) FROM dbe_embeddings;"),
             MembershipCount: ScalarInt(connection, "SELECT COUNT(*) FROM dbe_entity_membership;"),
             LastRunStatus: lastStatus,
             LastRunTimestamp: lastTimestamp);
@@ -51,7 +60,7 @@ public sealed class AnalyticsService
 
     public IReadOnlyList<MetricCoverage> GetMetricCoverage()
     {
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
         const string sql = """
             SELECT
                 m.metric_code,
@@ -61,8 +70,8 @@ public sealed class AnalyticsService
                 m.base_unit,
                 COUNT(DISTINCT o.entity_id) AS entity_count,
                 COUNT(o.id) AS observation_count,
-            (SELECT COALESCE(COUNT(DISTINCT d.entity_id),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_entity_count,
-            (SELECT COALESCE(COUNT(*),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_observation_count,
+                (SELECT COALESCE(COUNT(DISTINCT d.entity_id),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_entity_count,
+                (SELECT COALESCE(COUNT(*),0) FROM dbe_derived_observations d WHERE d.metric_id = m.metric_id) AS derived_observation_count,
                 MIN(o.start_date) AS min_period,
                 MAX(o.start_date) AS max_period
             FROM dbe_metrics m
@@ -83,28 +92,22 @@ public sealed class AnalyticsService
                 Category: reader.GetString(2),
                 Frequency: reader.GetString(3),
                 BaseUnit: reader.GetString(4),
-                EntityCount: reader.GetInt32(5),
-                ObservationCount: reader.GetInt32(6),
-                DerivedEntityCount: reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
-                DerivedObservationCount: reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                EntityCount: Int(reader, 5),
+                ObservationCount: Int(reader, 6),
+                DerivedEntityCount: reader.IsDBNull(7) ? 0 : Int(reader, 7),
+                DerivedObservationCount: reader.IsDBNull(8) ? 0 : Int(reader, 8),
                 MinPeriod: reader.IsDBNull(9) ? null : reader.GetString(9),
                 MaxPeriod: reader.IsDBNull(10) ? null : reader.GetString(10)));
         }
+
         return list;
     }
 
     public IReadOnlyList<SeriesPoint> GetSeries(string entity, string metric)
     {
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
         const string sql = """
-            SELECT
-                e.entity_code,
-                m.metric_code,
-                o.start_date,
-                o.val,
-                o.unit,
-                o.period_str,
-                o.source_kind
+            SELECT e.entity_code, m.metric_code, o.start_date, o.val, o.unit, o.period_str, o.source_kind
             FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
@@ -115,36 +118,23 @@ public sealed class AnalyticsService
         var list = new List<SeriesPoint>();
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.AddWithValue("@entity", entity);
-        command.Parameters.AddWithValue("@metric", metric);
+        command.Bind("@entity", entity);
+        command.Bind("@metric", metric);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            list.Add(new SeriesPoint(
-                EntityCode: reader.GetString(0),
-                MetricCode: reader.GetString(1),
-                Period: reader.GetString(2),
-                Value: reader.GetDouble(3),
-                Unit: reader.IsDBNull(4) ? null : reader.GetString(4),
-                PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5),
-                SourceKind: reader.IsDBNull(6) ? "raw" : reader.GetString(6)));
+            list.Add(Series(reader, withSourceKind: true));
         }
+
         return list;
     }
 
     public IReadOnlyList<SeriesPoint> GetSeriesForEntities(string metric, IReadOnlyList<string> entities)
     {
         var list = new List<SeriesPoint>();
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
         const string sql = """
-            SELECT
-                e.entity_code,
-                m.metric_code,
-                o.start_date,
-                o.val,
-                o.unit,
-                o.period_str,
-                o.source_kind
+            SELECT e.entity_code, m.metric_code, o.start_date, o.val, o.unit, o.period_str, o.source_kind
             FROM v_observations_all o
             JOIN dbe_entities e ON o.entity_id = e.entity_id
             JOIN dbe_metrics m ON o.metric_id = m.metric_id
@@ -156,91 +146,70 @@ public sealed class AnalyticsService
         {
             using var command = connection.CreateCommand();
             command.CommandText = sql;
-            command.Parameters.AddWithValue("@metric", metric);
-            command.Parameters.AddWithValue("@entity", entity);
+            command.Bind("@metric", metric);
+            command.Bind("@entity", entity);
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                list.Add(new SeriesPoint(
-                    EntityCode: reader.GetString(0),
-                    MetricCode: reader.GetString(1),
-                    Period: reader.GetString(2),
-                    Value: reader.GetDouble(3),
-                    Unit: reader.IsDBNull(4) ? null : reader.GetString(4),
-                    PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5)));
+                list.Add(Series(reader, withSourceKind: false));
             }
         }
+
         return list;
     }
 
     public IReadOnlyList<LatestSnapshotRow> GetLatestSnapshot(string? entity, string? metric, string? category, int limit)
     {
         limit = Math.Clamp(limit, 1, 1000);
-
-        using var connection = _factory.OpenReadOnly();
-        var sqlBuilder = new System.Text.StringBuilder("""
-            SELECT
-                country_code,
-                country_name,
-                metric_code,
-                metric_name,
-                category,
-                frequency,
-                base_unit,
-                value,
-                period,
-                source_kind
+        using var connection = Open();
+        var sql = new System.Text.StringBuilder("""
+            SELECT country_code, country_name, metric_code, metric_name, category, frequency, base_unit, value, period, source_kind
             FROM v_latest_metrics_snapshot
             WHERE 1=1
             """);
 
         if (!string.IsNullOrEmpty(entity))
         {
-            sqlBuilder.Append(" AND country_code = @entity");
-        }
-        if (!string.IsNullOrEmpty(metric))
-        {
-            sqlBuilder.Append(" AND metric_code = @metric");
-        }
-        if (!string.IsNullOrEmpty(category))
-        {
-            sqlBuilder.Append(" AND category = @category");
+            sql.Append(" AND country_code = @entity");
         }
 
-        sqlBuilder.Append(" ORDER BY country_code, metric_code LIMIT @limit;");
+        if (!string.IsNullOrEmpty(metric))
+        {
+            sql.Append(" AND metric_code = @metric");
+        }
+
+        if (!string.IsNullOrEmpty(category))
+        {
+            sql.Append(" AND category = @category");
+        }
+
+        sql.Append(" ORDER BY country_code, metric_code LIMIT @limit;");
 
         var list = new List<LatestSnapshotRow>();
         using var command = connection.CreateCommand();
-        command.CommandText = sqlBuilder.ToString();
+        command.CommandText = sql.ToString();
         if (!string.IsNullOrEmpty(entity))
         {
-            command.Parameters.AddWithValue("@entity", entity);
+            command.Bind("@entity", entity);
         }
+
         if (!string.IsNullOrEmpty(metric))
         {
-            command.Parameters.AddWithValue("@metric", metric);
+            command.Bind("@metric", metric);
         }
+
         if (!string.IsNullOrEmpty(category))
         {
-            command.Parameters.AddWithValue("@category", category);
+            command.Bind("@category", category);
         }
-        command.Parameters.AddWithValue("@limit", limit);
 
+        command.Bind("@limit", limit);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            list.Add(new LatestSnapshotRow(
-                CountryCode: reader.GetString(0),
-                CountryName: reader.GetString(1),
-                MetricCode: reader.GetString(2),
-                MetricName: reader.GetString(3),
-                Category: reader.GetString(4),
-                Frequency: reader.GetString(5),
-                BaseUnit: reader.GetString(6),
-                Value: reader.GetDouble(7),
-                Period: reader.GetString(8),
-                SourceKind: reader.IsDBNull(9) ? "raw" : reader.GetString(9)));
+            list.Add(Snapshot(reader));
         }
+
         return list;
     }
 
@@ -248,20 +217,11 @@ public sealed class AnalyticsService
     {
         limit = Math.Clamp(limit, 1, 1000);
         var order = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
         using var command = connection.CreateCommand();
         command.CommandText = $"""
-            SELECT
-                v.country_code,
-                v.country_name,
-                v.metric_code,
-                v.metric_name,
-                v.category,
-                v.frequency,
-                v.base_unit,
-                v.value,
-                v.period,
-                v.source_kind
+            SELECT v.country_code, v.country_name, v.metric_code, v.metric_name, v.category, v.frequency,
+                   v.base_unit, v.value, v.period, v.source_kind
             FROM v_latest_metrics_snapshot v
             JOIN dbe_entities e ON e.entity_code = v.country_code
             WHERE v.metric_code = @metric
@@ -270,34 +230,24 @@ public sealed class AnalyticsService
             ORDER BY v.value {order}
             LIMIT @limit;
             """;
-        command.Parameters.AddWithValue("@metric", metric);
-        command.Parameters.AddWithValue("@limit", limit);
+        command.Bind("@metric", metric);
+        command.Bind("@limit", limit);
 
         var list = new List<LatestSnapshotRow>();
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            list.Add(new LatestSnapshotRow(
-                CountryCode: reader.GetString(0),
-                CountryName: reader.GetString(1),
-                MetricCode: reader.GetString(2),
-                MetricName: reader.GetString(3),
-                Category: reader.GetString(4),
-                Frequency: reader.GetString(5),
-                BaseUnit: reader.GetString(6),
-                Value: reader.GetDouble(7),
-                Period: reader.GetString(8),
-                SourceKind: reader.IsDBNull(9) ? "raw" : reader.GetString(9)));
+            list.Add(Snapshot(reader));
         }
+
         return list;
     }
 
     public IReadOnlyList<EntitySummary> GetEntities(string? q, string? type, int limit)
     {
         limit = Math.Clamp(limit, 1, 1000);
-
-        using var connection = _factory.OpenReadOnly();
-        var sqlBuilder = new System.Text.StringBuilder("""
+        using var connection = Open();
+        var sql = new System.Text.StringBuilder("""
             SELECT
                 e.entity_code,
                 e.entity_name,
@@ -311,28 +261,30 @@ public sealed class AnalyticsService
 
         if (!string.IsNullOrEmpty(q))
         {
-            sqlBuilder.Append(" AND (e.entity_code LIKE '%' || @q || '%' OR e.entity_name LIKE '%' || @q || '%')");
-        }
-        if (!string.IsNullOrEmpty(type))
-        {
-            sqlBuilder.Append(" AND e.entity_type = @type");
+            sql.Append(" AND (e.entity_code LIKE '%' || @q || '%' OR e.entity_name LIKE '%' || @q || '%')");
         }
 
-        sqlBuilder.Append(" ORDER BY e.entity_code LIMIT @limit;");
+        if (!string.IsNullOrEmpty(type))
+        {
+            sql.Append(" AND e.entity_type = @type");
+        }
+
+        sql.Append(" ORDER BY e.entity_code LIMIT @limit;");
 
         var list = new List<EntitySummary>();
         using var command = connection.CreateCommand();
-        command.CommandText = sqlBuilder.ToString();
+        command.CommandText = sql.ToString();
         if (!string.IsNullOrEmpty(q))
         {
-            command.Parameters.AddWithValue("@q", q);
+            command.Bind("@q", q);
         }
+
         if (!string.IsNullOrEmpty(type))
         {
-            command.Parameters.AddWithValue("@type", type);
+            command.Bind("@type", type);
         }
-        command.Parameters.AddWithValue("@limit", limit);
 
+        command.Bind("@limit", limit);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -340,27 +292,20 @@ public sealed class AnalyticsService
                 EntityCode: reader.GetString(0),
                 EntityName: reader.GetString(1),
                 EntityType: reader.GetString(2),
-                IsAggregate: reader.GetInt32(3),
-                AliasCount: reader.GetInt32(4),
-                ObservationCount: reader.GetInt32(5)));
+                IsAggregate: Int(reader, 3),
+                AliasCount: Int(reader, 4),
+                ObservationCount: Int(reader, 5)));
         }
+
         return list;
     }
 
     public IReadOnlyList<RunSummary> GetRuns(int limit)
     {
         limit = Math.Clamp(limit, 1, 1000);
-
-        using var connection = _factory.OpenReadOnly();
+        using var connection = Open();
         const string sql = """
-            SELECT
-                run_id,
-                run_timestamp,
-                status,
-                execution_seconds,
-                metrics_extracted,
-                observations_upserted,
-                observations_skipped
+            SELECT run_id, run_timestamp, status, execution_seconds, metrics_extracted, observations_upserted, observations_skipped, tiers_written
             FROM dbe_pipeline_runs
             ORDER BY run_id DESC
             LIMIT @limit;
@@ -369,30 +314,62 @@ public sealed class AnalyticsService
         var list = new List<RunSummary>();
         using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.AddWithValue("@limit", limit);
+        command.Bind("@limit", limit);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             list.Add(new RunSummary(
-                RunId: reader.GetInt64(0),
+                RunId: Long(reader, 0),
                 RunTimestamp: reader.GetString(1),
                 Status: reader.GetString(2),
                 ExecutionSeconds: reader.GetDouble(3),
-                MetricsExtracted: reader.GetInt32(4),
-                ObservationsUpserted: reader.GetInt32(5),
-                ObservationsSkipped: reader.GetInt32(6)));
+                MetricsExtracted: Int(reader, 4),
+                ObservationsUpserted: Int(reader, 5),
+                ObservationsSkipped: Int(reader, 6),
+                TiersWritten: reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
+
         return list;
     }
 
-    private static int ScalarInt(SqliteConnection connection, string sql)
+    private static SeriesPoint Series(System.Data.Common.DbDataReader reader, bool withSourceKind)
+        => new(
+            EntityCode: reader.GetString(0),
+            MetricCode: reader.GetString(1),
+            Period: reader.GetString(2),
+            Value: reader.GetDouble(3),
+            Unit: reader.IsDBNull(4) ? null : reader.GetString(4),
+            PeriodStr: reader.IsDBNull(5) ? null : reader.GetString(5),
+            SourceKind: withSourceKind ? reader.IsDBNull(6) ? "raw" : reader.GetString(6) : "raw");
+
+    private static LatestSnapshotRow Snapshot(System.Data.Common.DbDataReader reader)
+        => new(
+            CountryCode: reader.GetString(0),
+            CountryName: reader.GetString(1),
+            MetricCode: reader.GetString(2),
+            MetricName: reader.GetString(3),
+            Category: reader.GetString(4),
+            Frequency: reader.GetString(5),
+            BaseUnit: reader.GetString(6),
+            Value: reader.GetDouble(7),
+            Period: reader.GetString(8),
+            SourceKind: reader.IsDBNull(9) ? "raw" : reader.GetString(9));
+
+    // DuckDB surfaces counts as int while SQLite may surface them as long.
+    private static int Int(System.Data.Common.DbDataReader reader, int ordinal)
+        => Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static long Long(System.Data.Common.DbDataReader reader, int ordinal)
+        => Convert.ToInt64(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static int ScalarInt(AnalyticsConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
-    private static long ScalarLong(SqliteConnection connection, string sql)
+    private static long ScalarLong(AnalyticsConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;

@@ -35,6 +35,7 @@ public sealed class SchemaInitializer
             using var command = connection.CreateCommand();
             command.CommandText = script;
             command.ExecuteNonQuery();
+            Migrate(connection);
             _logger.Information("Database schema successfully initialized with dbe_* tables.");
             return true;
         }
@@ -43,6 +44,38 @@ public sealed class SchemaInitializer
             _logger.Error(ex, "Failed to initialize database schema.");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Additive migrations for databases created before a column existed. Never destructive:
+    /// only columns added to the schema over time are back-filled here.
+    /// </summary>
+    private static void Migrate(SqliteConnection connection)
+    {
+        if (HasColumn(connection, "dbe_pipeline_runs", "tiers_written"))
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "ALTER TABLE dbe_pipeline_runs ADD COLUMN tiers_written TEXT;";
+        command.ExecuteNonQuery();
+    }
+
+    private static bool HasColumn(SqliteConnection connection, string table, string column)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({table});";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public bool Verify(out string message)

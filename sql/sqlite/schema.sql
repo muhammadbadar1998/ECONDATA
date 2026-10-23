@@ -129,7 +129,8 @@ CREATE TABLE IF NOT EXISTS dbe_pipeline_runs (
     providers TEXT,
     source_ids TEXT,
     status TEXT NOT NULL,
-    execution_seconds REAL NOT NULL
+    execution_seconds REAL NOT NULL,
+    tiers_written TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_dbe_pipeline_runs_timestamp ON dbe_pipeline_runs(run_timestamp);
 
