@@ -57,7 +57,8 @@ builder.Services.AddSingleton(sp => new GoldTier(
     logger));
 builder.Services.AddSingleton<AnalyticsService>(sp => new AnalyticsService(
     sp.GetRequiredService<SqliteConnectionFactory>(),
-    sp.GetRequiredService<GoldTier>()));
+    sp.GetRequiredService<GoldTier>(),
+    sp.GetRequiredService<AppConfig>().ServingStore));
 builder.Services.AddSingleton(sp => new LakeStatusService(
     sp.GetRequiredService<LakePaths>(),
     sp.GetRequiredService<GoldTier>(),
@@ -88,7 +89,8 @@ builder.Services.AddSingleton<IDocumentSearcher>(sp => new Vectorizer(
     sp.GetRequiredService<SqliteConnectionFactory>(),
     sp.GetRequiredService<VectorStore>(),
     sp.GetRequiredService<IEmbedder>(),
-    logger: logger));
+    logger: logger,
+    gold: new GoldTier(sp.GetRequiredService<LakePaths>().GoldPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger)));
 builder.Services.AddSingleton<IChatModel>(_ => new LLMClient(config, new HttpClient(), logger));
 builder.Services.AddSingleton<IRagAnswerer>(sp => new RagAnswerer(
     sp.GetRequiredService<IDocumentSearcher>(),

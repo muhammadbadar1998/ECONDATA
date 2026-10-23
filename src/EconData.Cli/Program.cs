@@ -352,9 +352,14 @@ internal static class Program
         new SchemaInitializer(factory, logger).Initialize(CliPaths.Resolve(root, options.Value("schema", DefaultSchemaPath)!));
         var store = new VectorStore(factory, CliPaths.Resolve(root, config.SqliteVecExtensionPath), logger);
 
+        var lake = LakePaths.Resolve(root, config.LakeDir);
+        lake.EnsureDirectories();
+        var gold = new GoldTier(lake.GoldPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger);
+
         using var http = new HttpClient();
         var embedder = new OllamaEmbedder(config, http, logger);
-        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, options.Has("reembed"), logger);
+        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, options.Has("reembed"), logger,
+            gold);
         var stats = await vectorizer.VectorizeAllAsync(options.IntValue("recent-points", Vectorizer.DefaultRecentPoints)).ConfigureAwait(false);
 
         Console.WriteLine(
@@ -370,10 +375,15 @@ internal static class Program
         var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
         var store = new VectorStore(factory, CliPaths.Resolve(root, config.SqliteVecExtensionPath), logger);
 
+        var lake = LakePaths.Resolve(root, config.LakeDir);
+        lake.EnsureDirectories();
+        var gold = new GoldTier(lake.GoldPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger);
+
         using var http = new HttpClient();
         var embedder = new OllamaEmbedder(config, http, logger);
         var llm = new LLMClient(config, http, logger);
-        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, forceReembed: false, logger);
+        var vectorizer = new Vectorizer(catalog, seed, factory, store, embedder, forceReembed: false, logger,
+            gold);
         var k = options.IntValue("k", config.RagTopK);
 
         IRagAnswerer AnswererFactory(string systemPrompt) => new RagAnswerer(vectorizer, llm, k, systemPrompt, logger);

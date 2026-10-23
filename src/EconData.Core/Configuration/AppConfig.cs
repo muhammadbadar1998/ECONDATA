@@ -43,7 +43,7 @@ public sealed class AppConfig
     public int RagTopK { get; init; } = 8;
     public int RagRecentPoints { get; init; } = 5;
     public string LogLevel { get; init; } = "INFO";
-    public string ServingStore { get; init; } = DefaultServingStore;
+    public ServingStore ServingStore { get; init; } = ServingStores.Parse(DefaultServingStore);
 
     public static AppConfig FromConfiguration(IConfiguration configuration)
     {
@@ -69,7 +69,7 @@ public sealed class AppConfig
             RagTopK = GetInt(configuration, "RAG_TOP_K", 8),
             RagRecentPoints = GetInt(configuration, "RAG_RECENT_POINTS", 5),
             LogLevel = (configuration["LOG_LEVEL"] ?? "INFO").ToUpperInvariant(),
-            ServingStore = (configuration["ECONDATA_SERVING_STORE"] ?? DefaultServingStore).ToUpperInvariant(),
+            ServingStore = ServingStores.Parse(configuration["ECONDATA_SERVING_STORE"] ?? DefaultServingStore),
         };
     }
 
