@@ -448,8 +448,7 @@ public sealed class AnalyticsService
             JOIN dbe_observations o2 ON o1.entity_id = o2.entity_id AND o1.start_date = o2.start_date
             WHERE o1.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric1)
               AND o2.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric2)
-              AND o1.start_date = @period
-              AND o2.start_date = @period";
+              AND o1.start_date = @period";
         command.Bind("@metric1", metricCode1);
         command.Bind("@metric2", metricCode2);
         command.Bind("@period", period);
@@ -493,9 +492,10 @@ public sealed class AnalyticsService
     public IReadOnlyList<FreshnessRecord> GetFreshness()
     {
         using var connection = Open();
+        // Compute the lag in C#: DuckDB and SQLite disagree on strftime argument order
+        // and DuckDB rejects strftime on VARCHAR dates without an explicit cast.
         var freshnessSql = @"
-            SELECT m.metric_code, MAX(o.start_date) AS latest, COUNT(o.id) AS row_count,
-                   CAST(strftime('%Y', 'now') AS INTEGER) - CAST(strftime('%Y', MAX(o.start_date)) AS INTEGER) AS lag_years
+            SELECT m.metric_code, MAX(o.start_date) AS latest, COUNT(o.id) AS row_count
             FROM dbe_metrics m
             LEFT JOIN dbe_observations o ON m.metric_id = o.metric_id
             GROUP BY m.metric_code
@@ -507,11 +507,18 @@ public sealed class AnalyticsService
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
+            var latest = reader.IsDBNull(1) ? null : reader.GetString(1);
+            int? lag = null;
+            if (latest is not null && latest.Length >= 4 && int.TryParse(latest[..4], CultureInfo.InvariantCulture, out var year))
+            {
+                lag = DateTime.UtcNow.Year - year;
+            }
+
             list.Add(new FreshnessRecord(
                 reader.GetString(0),
-                reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.IsDBNull(2) ? 0 : Convert.ToInt32(reader.GetValue(2)),
-                reader.IsDBNull(3) ? null : reader.GetInt32(3)));
+                latest,
+                reader.IsDBNull(2) ? 0 : Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+                lag));
         }
         return list;
     }

@@ -369,7 +369,10 @@ public sealed class GoldTier
         return LoadMetricCodeToId();
     }
 
-    private void ImportSources(SqliteConnection connection, IReadOnlyDictionary<string, int> metricIds)
+    private void ImportSources(
+        SqliteConnection connection,
+        IReadOnlyDictionary<int, string> sqliteMetricCodes,
+        IReadOnlyDictionary<string, int> goldMetricIds)
     {
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT provider, dataset, indicator_code, metric_id, dimension_key, entity_scope FROM dbe_sources";
@@ -378,15 +381,15 @@ public sealed class GoldTier
         var rows = new List<object?[]>();
         while (reader.Read())
         {
-            var metricId = reader.GetString(3);
-            if (!metricIds.TryGetValue(metricId, out _)) continue;
+            if (!sqliteMetricCodes.TryGetValue(reader.GetInt32(3), out var metricCode)) continue;
+            if (!goldMetricIds.TryGetValue(metricCode, out var goldMetricId)) continue;
 
             rows.Add(new object?[]
             {
                 reader.GetString(0),
                 reader.GetString(1),
                 reader.GetString(2),
-                metricId,
+                goldMetricId,
                 reader.GetString(4),
                 reader.GetString(5),
             });
@@ -399,23 +402,34 @@ public sealed class GoldTier
             new[] { "metric_id", "dimension_key", "entity_scope" });
     }
 
-    private void ImportObservations(SqliteConnection connection, IReadOnlyDictionary<string, int> metricIds)
+    private void ImportObservations(
+        SqliteConnection connection,
+        IReadOnlyDictionary<int, string> sqliteMetricCodes,
+        IReadOnlyDictionary<string, int> goldMetricIds,
+        IReadOnlyDictionary<int, string> sqliteEntityCodes,
+        IReadOnlyDictionary<string, int> goldEntityIds,
+        IReadOnlyDictionary<int, string> sqliteSourceKeys,
+        IReadOnlyDictionary<string, int> goldSourceIds)
     {
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT metric_code, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str, extracted_at FROM dbe_observations";
+        command.CommandText = "SELECT metric_id, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str, extracted_at FROM dbe_observations";
         using var reader = command.ExecuteReader();
 
         var rows = new List<object?[]>();
         while (reader.Read())
         {
-            var metricCode = reader.GetString(0);
-            if (!metricIds.TryGetValue(metricCode, out _)) continue;
+            if (!sqliteMetricCodes.TryGetValue(reader.GetInt32(0), out var metricCode)) continue;
+            if (!goldMetricIds.TryGetValue(metricCode, out var metricId)) continue;
+            if (!sqliteEntityCodes.TryGetValue(reader.GetInt32(1), out var entityCode)) continue;
+            if (!goldEntityIds.TryGetValue(entityCode, out var entityId)) continue;
+            if (!sqliteSourceKeys.TryGetValue(reader.GetInt32(2), out var sourceKey)) continue;
+            if (!goldSourceIds.TryGetValue(sourceKey, out var sourceId)) continue;
 
             rows.Add(new object?[]
             {
-                metricCode,
-                reader.GetInt32(1),
-                reader.GetInt32(2),
+                metricId,
+                entityId,
+                sourceId,
                 reader.GetString(3),
                 reader.GetString(4),
                 reader.GetDouble(5),
@@ -431,26 +445,6 @@ public sealed class GoldTier
             rows,
             new[] { "metric_id", "entity_id", "start_date", "end_date" },
             new[] { "val", "raw_val", "unit", "period_str", "extracted_at" });
-    }
-
-    private void AggregateImportedDerived(IReadOnlyDictionary<string, int> metricIds)
-    {
-        using var connection = Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = @"
-            DELETE FROM dbe_derived_observations;
-
-            INSERT INTO dbe_derived_observations (metric_id, entity_id, start_date, end_date, val, unit, aggregation_method, member_count, covered_count, computed_at)
-            SELECT o.metric_id, o.entity_id, o.start_date, o.end_date,
-                   o.val, o.unit,
-                   CASE WHEN COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date) > 1 THEN 'mean' ELSE 'sum' END,
-                   COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date),
-                   COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date),
-                   strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-            FROM dbe_observations o
-            GROUP BY o.metric_id, o.entity_id, o.start_date, o.end_date, o.val, o.unit;
-        ";
-        command.ExecuteNonQuery();
     }
 
     private long CountObservations(SqliteConnection connection)
@@ -654,23 +648,71 @@ public sealed class GoldTier
 
         using var connection = sqliteFactory.OpenReadOnly();
 
-        // 1. Entities
+        // Natural-key maps: SQLite surrogate ids are never copied into gold.
+        var sqliteMetricCodes = ReadIdMap(connection, "SELECT metric_id, metric_code FROM dbe_metrics");
+        var sqliteEntityCodes = ReadIdMap(connection, "SELECT entity_id, entity_code FROM dbe_entities");
+        var sqliteSourceKeys = ReadSourceKeyMap(connection);
+
         ImportEntities(connection);
+        ImportMetrics(connection);
 
-        // 2. Metrics
-        var metricIds = ImportMetrics(connection);
+        var goldMetricIds = LoadMetricCodeToId();
+        ImportSources(connection, sqliteMetricCodes, goldMetricIds);
 
-        // 3. Sources
-        ImportSources(connection, metricIds);
+        var goldEntityIds = LoadEntityCodeToId();
+        var goldSourceIds = LoadSourceKeyToId();
+        ImportObservations(connection, sqliteMetricCodes, goldMetricIds, sqliteEntityCodes, goldEntityIds, sqliteSourceKeys, goldSourceIds);
 
-        // 4. Observations
-        ImportObservations(connection, metricIds);
+        _logger.Information(
+            "Import from SQLite complete: {MetricCount} metrics, {ObservationCount} observations. " +
+            "Derived aggregates are recomputed by the normal pipeline (extract --gold / lake build-gold).",
+            goldMetricIds.Count, CountObservations(connection));
+    }
 
-        // 5. Derived aggregation
-        AggregateImportedDerived(metricIds);
+    private static Dictionary<int, string> ReadIdMap(SqliteConnection connection, string sql)
+    {
+        var map = new Dictionary<int, string>();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            map[reader.GetInt32(0)] = reader.GetString(1);
+        }
 
-        _logger.Information("Import from SQLite complete: {MetricCount} metrics, {ObservationCount} observations.",
-            metricIds.Count, CountObservations(connection));
+        return map;
+    }
+
+    private static Dictionary<int, string> ReadSourceKeyMap(SqliteConnection connection)
+    {
+        var map = new Dictionary<int, string>();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_id, provider, dataset, indicator_code FROM dbe_sources";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            map[reader.GetInt32(0)] = SourceKey(reader.GetString(1), reader.GetString(2), reader.GetString(3));
+        }
+
+        return map;
+    }
+
+    private static string SourceKey(string provider, string dataset, string indicator)
+        => provider + "\u001f" + dataset + "\u001f" + indicator;
+
+    private Dictionary<string, int> LoadSourceKeyToId()
+    {
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_id, provider, dataset, indicator_code FROM dbe_sources";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            map[SourceKey(reader.GetString(1), reader.GetString(2), reader.GetString(3))] = reader.GetInt32(0);
+        }
+
+        return map;
     }
 
 
