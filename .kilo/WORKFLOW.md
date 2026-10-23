@@ -72,8 +72,7 @@ Plans missing any of these are incomplete and must not be executed.
 
 Three files are the compact source of truth. Together they let any session resume with
 minimal context instead of re-reading the codebase. All live in `.kilo/work/` and are
-gitignored by default (uncomment the `.kilo/work/` rule in `.gitignore` if you want plans to
-ship with the repo).
+committed with the repo, as are phase plans in `.kilo/plans/`.
 
 | File | Purpose | Updated |
 |---|---|---|
