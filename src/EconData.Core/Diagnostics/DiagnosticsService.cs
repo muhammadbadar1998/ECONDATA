@@ -164,38 +164,43 @@ public sealed class DiagnosticsService
         return Convert.ToString(command.ExecuteScalar(), CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
-    /// <summary>Reports lake tier presence. A missing lake is a warning, not a blocker.</summary>
+    /// <summary>Reports lake tier presence with actionable guidance per state.</summary>
     private void AddLakeCheck(List<CheckResult> checks)
     {
         var paths = LakePaths.Resolve(Directory.GetCurrentDirectory(), _config.LakeDir);
+
+        if (!paths.GoldExists)
+        {
+            checks.Add(new CheckResult(
+                "lake",
+                Diagnosis.Warn,
+                $"lake not built (absent at {paths.GoldPath}); run `lake init`, then `extract --bronze --silver --gold`"));
+            return;
+        }
+
+        var tiers = string.Join(", ", new[]
+        {
+            paths.BronzeExists ? "bronze" : null,
+            paths.SilverExists ? "silver" : null,
+            paths.GoldExists ? "gold" : null,
+        }.Where(t => t is not null));
+
         try
         {
-            if (!paths.GoldExists && !paths.BronzeExists && !paths.SilverExists)
-            {
-                checks.Add(new CheckResult("lake", Diagnosis.Warn, "lake not built; run `extract --bronze --silver --gold`"));
-                return;
-            }
-
-            var tiers = string.Join(", ", new[]
-            {
-                paths.BronzeExists ? "bronze" : null,
-                paths.SilverExists ? "silver" : null,
-                paths.GoldExists ? "gold" : null,
-            }.Where(t => t is not null));
-
-            using (var connection = new DuckDB.NET.Data.DuckDBConnection($"Data Source={paths.GoldPath};ACCESS_MODE=READ_ONLY"))
-            {
-                connection.Open();
-                using var command = connection.CreateCommand();
-                command.CommandText = "SELECT count(*) FROM dbe_observations";
-                Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
-            }
+            using var connection = new DuckDB.NET.Data.DuckDBConnection($"Data Source={paths.GoldPath};ACCESS_MODE=READ_ONLY");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT count(*) FROM dbe_observations";
+            Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
 
             checks.Add(new CheckResult("lake", Diagnosis.Pass, $"tiers: {tiers}"));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            checks.Add(new CheckResult("lake", Diagnosis.Warn, ex.Message));
+            checks.Add(new CheckResult(
+                "lake",
+                Diagnosis.Warn,
+                $"gold present but not initialized at {paths.GoldPath}; run `lake init` ({ex.Message})"));
         }
     }
 

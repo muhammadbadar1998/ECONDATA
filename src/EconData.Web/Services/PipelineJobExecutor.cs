@@ -63,6 +63,7 @@ public sealed class PipelineJobExecutor : IJobExecutor
             JobKind.Extract => await ExtractAsyncWithAdapter(request, progress, cancellationToken).ConfigureAwait(false),
             JobKind.Vectorize => await VectorizeAsync(request, progress, cancellationToken).ConfigureAwait(false),
             JobKind.RunAll => await RunAllAsync(request, progress, cancellationToken).ConfigureAwait(false),
+            JobKind.Rebuild => await RebuildAsync(progress, cancellationToken).ConfigureAwait(false),
             _ => new JobResult("Unknown job kind")
         };
     }
@@ -186,5 +187,48 @@ public sealed class PipelineJobExecutor : IJobExecutor
         cancellationToken.ThrowIfCancellationRequested();
         await VectorizeAsync(request, progress, cancellationToken).ConfigureAwait(false);
         return new JobResult("Run all completed");
+    }
+
+    private async Task<JobResult> RebuildAsync(IProgress<JobProgressUpdate> progress, CancellationToken cancellationToken)
+    {
+        progress.Report(new JobProgressUpdate("rebuild", "Rebuilding gold from silver", 0, 1));
+        if (_lake is null)
+        {
+            progress.Report(new JobProgressUpdate("rebuild", "Lake not configured", 1, 1));
+            return new JobResult("Lake not configured");
+        }
+
+        var silver = new SilverTier(_lake, _logger);
+        var partitions = silver.Partitions();
+        if (partitions.Count == 0)
+        {
+            progress.Report(new JobProgressUpdate("rebuild", "No silver partitions to rebuild", 1, 1));
+            return new JobResult("No silver partitions to rebuild");
+        }
+
+        var rebuildPath = Path.Combine(_lake.GoldDir, "econdata.rebuild.duckdb");
+        if (File.Exists(rebuildPath)) File.Delete(rebuildPath);
+        var rebuild = new GoldTier(rebuildPath, DuckDbSchemaPath(_schemaPath), _logger);
+
+        var counts = await rebuild.RebuildFromSilverAsync(_seed, _catalog, silver, partitions).ConfigureAwait(false);
+
+        var silverCounts = await silver.RowCountsAsync().ConfigureAwait(false);
+        var ok = counts.Keys.All(k => silverCounts.TryGetValue(k, out var s) && s == counts[k])
+            && partitions.All(p => counts.ContainsKey(p));
+        if (!ok)
+        {
+            progress.Report(new JobProgressUpdate("rebuild", "Rebuild validation failed; not swapped", 1, 1));
+            return new JobResult("Rebuild validation failed; not swapped");
+        }
+
+        File.Move(rebuildPath, _lake.GoldPath, overwrite: true);
+        progress.Report(new JobProgressUpdate("rebuild", "Gold rebuilt and swapped", 1, 1));
+        return new JobResult($"Gold rebuilt from {counts.Count} partitions");
+    }
+
+    private static string DuckDbSchemaPath(string sqliteSchemaPath)
+    {
+        var sqlDir = Path.GetDirectoryName(Path.GetDirectoryName(sqliteSchemaPath));
+        return Path.Combine(sqlDir ?? "sql", "duckdb", "schema.sql");
     }
 }

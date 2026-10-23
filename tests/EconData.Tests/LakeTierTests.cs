@@ -1,3 +1,5 @@
+using DuckDB.NET.Data;
+using EconData.Core.Analytics;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
@@ -86,6 +88,35 @@ public class LakeTierTests : IDisposable
     }
 
     [Fact]
+    public async Task Bronze_RowCountSumsRowGroupsAcrossFiles()
+    {
+        var bronze = new BronzeTier(_paths, _logger);
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("USA", new[] { "2020" }, new[] { "10" }) }, _catalog, "run1");
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("FRA", new[] { "2020" }, new[] { "20" }) }, _catalog, "run2");
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("DEU", new[] { "2020" }, new[] { "30" }) }, _catalog, "run3");
+
+        var counts = await bronze.RowCountsAsync();
+        Assert.Equal(3, counts["gdp_usd"]);
+
+        var total = await bronze.RowCountAsync("gdp_usd");
+        Assert.Equal(3, total);
+    }
+
+    [Fact]
+    public async Task LakeStatus_ReportsNonZeroBronzeRows()
+    {
+        var service = new LakeStatusService(_paths, new GoldTier(_paths.GoldPath, SchemaPath, _logger), _logger);
+        var bronze = new BronzeTier(_paths, _logger);
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("USA", new[] { "2020" }, new[] { "10" }) }, _catalog, "run1");
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("FRA", new[] { "2020" }, new[] { "20" }) }, _catalog, "run2");
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("DEU", new[] { "2020" }, new[] { "30" }) }, _catalog, "run3");
+
+        var status = await service.GetAsync();
+        Assert.Equal(3, status.Bronze.Rows);
+        Assert.True(status.Bronze.Present);
+    }
+
+    [Fact]
     public async Task Silver_OverwritesPartition()
     {
         var silver = new SilverTier(_paths, _logger);
@@ -113,6 +144,56 @@ public class LakeTierTests : IDisposable
         Assert.Equal(first.Length, second.Length);
         var counts = await silver.RowCountsAsync();
         Assert.Equal(2, counts["gdp_usd"]);
+    }
+
+    [Fact]
+    public async Task Silver_CountSidecarUsedAndSurvivesDeletion()
+    {
+        var silver = new SilverTier(_paths, _logger);
+        await silver.WriteAsync("gdp_usd", new[] { Obs("USA", 2020, 10), Obs("USA", 2021, 20) });
+
+        var parquet = _paths.SilverFile("gdp_usd");
+        var sidecar = Path.ChangeExtension(parquet, ".count");
+        Assert.True(File.Exists(sidecar));
+
+        var counts = await silver.RowCountsAsync();
+        Assert.Equal(2, counts["gdp_usd"]);
+
+        // sidecar is fresh (written after parquet) so the second call skips the scan
+        Assert.True(File.GetLastWriteTimeUtc(sidecar) >= File.GetLastWriteTimeUtc(parquet));
+        counts = await silver.RowCountsAsync();
+        Assert.Equal(2, counts["gdp_usd"]);
+
+        // missing sidecar → falls back to a Parquet scan, still correct
+        File.Delete(sidecar);
+        counts = await silver.RowCountsAsync();
+        Assert.Equal(2, counts["gdp_usd"]);
+    }
+
+    [Fact]
+    public async Task Gold_RebuildFromSilverReflectsReducedCount()
+    {
+        var rebuild = new GoldTier(Path.Combine(_paths.GoldDir, "econdata.rebuild.duckdb"), SchemaPath, _logger);
+        var silver = new SilverTier(_paths, _logger);
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+
+        await silver.WriteAsync("gdp_usd", new[] { Obs("USA", 2020, 10), Obs("FRA", 2020, 20) });
+        var counts = await rebuild.RebuildFromSilverAsync(seed, _catalog, silver, new[] { "gdp_usd" });
+        Assert.Equal(2, counts["gdp_usd"]);
+
+        // Reduce silver (one row removed): rebuild from an empty file reflects the reduced count.
+        File.Delete(rebuild.DatabasePath);
+        await silver.WriteAsync("gdp_usd", new[] { Obs("USA", 2020, 10) });
+        counts = await rebuild.RebuildFromSilverAsync(seed, _catalog, silver, new[] { "gdp_usd" });
+        Assert.Equal(1, counts["gdp_usd"]);
+
+        // Atomic swap into the live gold file.
+        File.Move(rebuild.DatabasePath, _paths.GoldPath, overwrite: true);
+        using var db = new DuckDBConnection($"Data Source={_paths.GoldPath}");
+        db.Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT count(*) FROM dbe_observations";
+        Assert.Equal(1, Convert.ToInt32(cmd.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

@@ -1,31 +1,17 @@
-# Plan — Phase 3 Medallion Ingestion (ARCHIVED)
+# Plan — Sprint 3 (ACTIVE)
 
-**Status: DONE.** This file was the execution copy for an intermediate attempt. It is kept
-only for history; the source of record is
-`.kilo/plans/1792630353407-medallion-ingestion.md`, and the shipped behaviour is defined by
-the code and tests.
+**Status: ACTIVE.** Source of record:
+`.kilo/plans/1792630353408-sprint3-hardening-serving-breadth-analytics.md`.
 
-## Correction to the earlier execution copy
+Tier: **T2** default; T3 for A3 atomic rebuild, B2 natural-key mapping, B1 serving semantics.
 
-An earlier version of this file claimed `lake build-gold` reads silver through DuckDB
-`read_parquet(...)`. That was **not** how it was built. The shipped path is:
+## Approved decisions
 
-- `SilverTier.ReadAsync(metric)` reads the silver Parquet with `Parquet.Net`.
-- `GoldTier.UpsertObservations(...)` writes those rows into DuckDB with chunked,
-  positional-parameter `ON CONFLICT` upserts.
+- C1: 15 WDI metrics, no forecast set.
+- C2: EU, Euro Area, G7, G20, BRICS, ASEAN.
+- B1: `ECONDATA_SERVING_STORE` defaults to `gold` (strict); `auto`/`sqlite` selectable.
+- A3: `lake build-gold --rebuild` plus a Runner job option, both via the single job slot.
 
-## What shipped
+## Sequencing
 
-- Bronze: append-only raw Parquet per provider/dataset/metric/run (`BronzeTier`).
-- Silver: per-metric Parquet partition, overwritten per run (`SilverTier`).
-- Gold: DuckDB `dbe_*` tables + views; bootstrap, idempotent upserts, derived aggregation,
-  run audit, `OpenReadOnly()` (`GoldTier`).
-- `PipelineRunner` four-banner narrative + `PipelineTiers` (`--bronze/--silver/--gold`).
-- `lake status`, `lake build-gold`, doctor `lake` check.
-- `AnalyticsService` and `Vectorizer` read gold, falling back to SQLite.
-- Lake Web page, Overview card, Runner checkboxes, Runs Tiers column, `/api/lake/status`.
-
-## Verification
-
-See `PROGRESS.md` (gate: 221 tests, 0 warnings, format clean) and `ISSUES.md`
-(known non-blocking follow-ups).
+A (A1 → A2 → A4 → A3) → B (B1 → B2 → B3 → B4) → C → D. One commit per workstream.

@@ -230,6 +230,63 @@ public class DiagnosticsServiceTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task WarnsWhenGoldPresentButUninitialized()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "econdata-doctor-lake-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var lakePaths = new LakePaths(Path.Combine(dir, "lake"));
+            lakePaths.EnsureDirectories();
+            // gold file exists but is not a valid initialized DuckDB database
+            File.WriteAllBytes(lakePaths.GoldPath, Array.Empty<byte>());
+
+            var report = await CreateWithLake(lakePaths.LakeDir).RunAsync();
+            var lake = report.Checks.Single(c => c.Name == "lake");
+            Assert.Equal(Diagnosis.Warn, lake.Diagnosis);
+            Assert.Contains("lake init", lake.Detail, StringComparison.Ordinal);
+            Assert.False(report.HasBlockers);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PassesAfterLakeInit()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "econdata-doctor-lake-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var lakePaths = new LakePaths(Path.Combine(dir, "lake"));
+            lakePaths.EnsureDirectories();
+            new GoldTier(
+                    lakePaths.GoldPath,
+                    Path.Combine(TestPaths.RepoRoot, "sql", "duckdb", "schema.sql"),
+                    _logger)
+                .EnsureSchema();
+            // idempotent: initialize again
+            new GoldTier(
+                    lakePaths.GoldPath,
+                    Path.Combine(TestPaths.RepoRoot, "sql", "duckdb", "schema.sql"),
+                    _logger)
+                .EnsureSchema();
+
+            var report = await CreateWithLake(lakePaths.LakeDir).RunAsync();
+            var lake = report.Checks.Single(c => c.Name == "lake");
+            Assert.Equal(Diagnosis.Pass, lake.Diagnosis);
+            Assert.Contains("gold", lake.Detail, StringComparison.Ordinal);
+            Assert.False(report.HasBlockers);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private DiagnosticsService CreateWithLake(string lakeDir)
     {
         var baseCfg = AppConfig.Load(TestPaths.RepoRoot);

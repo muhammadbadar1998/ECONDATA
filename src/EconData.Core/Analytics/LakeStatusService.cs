@@ -38,7 +38,7 @@ public sealed class LakeStatusService
 
     public async Task<LakeStatus> GetAsync(CancellationToken cancellationToken = default)
     {
-        var bronze = Bronze();
+        var bronze = await BronzeAsync(cancellationToken).ConfigureAwait(false);
         var silver = await SilverAsync(cancellationToken).ConfigureAwait(false);
         var (gold, tables) = Gold();
         var partitions = await new SilverTier(_paths, _logger).RowCountsAsync(cancellationToken).ConfigureAwait(false);
@@ -53,8 +53,10 @@ public sealed class LakeStatusService
             Partitions: partitions);
     }
 
-    private TierStatus Bronze()
+    private async Task<TierStatus> BronzeAsync(CancellationToken cancellationToken)
     {
+        var bronze = new BronzeTier(_paths, _logger);
+        var counts = await bronze.RowCountsAsync(cancellationToken).ConfigureAwait(false);
         var files = Files(_paths.BronzeDir);
         var bytes = files.Sum(f => new FileInfo(f).Length);
         var newest = files.Select(f => File.GetLastWriteTimeUtc(f)).DefaultIfEmpty().Max();
@@ -63,15 +65,16 @@ public sealed class LakeStatusService
             .Where(name => !string.IsNullOrEmpty(name))
             .Distinct(StringComparer.Ordinal)
             .Count();
+        var rows = counts.Values.Sum();
 
         return new TierStatus(
             Tier: "bronze",
-            Present: files.Count > 0,
-            Rows: 0,
+            Present: rows > 0,
+            Rows: rows,
             Files: files.Count,
             Bytes: bytes,
             Newest: files.Count > 0 ? newest.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture) : null,
-            Detail: files.Count > 0 ? $"{metrics} metrics" : "not built yet");
+            Detail: rows > 0 ? $"{metrics} metrics" : "not built yet");
     }
 
     private async Task<TierStatus> SilverAsync(CancellationToken cancellationToken)

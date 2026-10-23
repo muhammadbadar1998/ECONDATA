@@ -89,6 +89,51 @@ public sealed class BronzeTier
             .ToList();
     }
 
+    /// <summary>Distinct metric codes that have bronze files on disk.</summary>
+    public IReadOnlyList<string> BronzeMetrics()
+    {
+        if (!Directory.Exists(_paths.BronzeDir))
+        {
+            return Array.Empty<string>();
+        }
+
+        return Directory.GetFiles(_paths.BronzeDir, "*.parquet", SearchOption.AllDirectories)
+            .Select(f => Path.GetFileName(Path.GetDirectoryName(f)))
+            .Where(name => !string.IsNullOrEmpty(name))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>Row count for one metric, summed across row-group metadata (no column decode).</summary>
+    public async Task<long> RowCountAsync(string metricCode, CancellationToken cancellationToken = default)
+    {
+        long total = 0;
+        foreach (var file in BronzeFiles(metricCode))
+        {
+            await using var stream = File.OpenRead(file);
+            await using var reader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken);
+            for (var i = 0; i < reader.RowGroupCount; i++)
+            {
+                using var group = reader.OpenRowGroupReader(i);
+                total += group.RowCount;
+            }
+        }
+        return total;
+    }
+
+    /// <summary>Row count per metric, summed across row-group metadata.</summary>
+    public async Task<IReadOnlyDictionary<string, long>> RowCountsAsync(CancellationToken cancellationToken = default)
+    {
+        var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
+        foreach (var metric in BronzeMetrics())
+        {
+            counts[metric] = await RowCountAsync(metric, cancellationToken);
+        }
+        return counts;
+    }
+
     private static async Task WriteAsync(
         string path,
         IReadOnlyList<RawSeries> series,

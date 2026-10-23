@@ -1,6 +1,34 @@
 # Progress
 
-- Phase: Phase 3 — Medallion ingestion
+## Sprint 3 — ACTIVE
+
+Plan: `.kilo/plans/1792630353408-sprint3-hardening-serving-breadth-analytics.md`
+(approved 2026-10-23; `ServingStore` default = `gold`; rebuild = CLI + Runner job).
+
+| Item | Status |
+|---|---|
+| A1 bronze row counts | DONE — `BronzeTier.RowCountsAsync/RowCountAsync`, `LakeStatusService` uses them |
+| A2 silver count sidecar | DONE — `WriteAsync` writes `<metric>.count`; `RowCountsAsync` reads it, scans on missing/stale |
+| A4 `lake init` + honest doctor | DONE — `lake init` idempotent; doctor reports absent / present-uninitialized (`lake init`) / readable |
+| A3 `build-gold --rebuild` | NEXT — not started |
+| B, C, D | Not started |
+
+Gate after A1/A2/A4: build 0 warnings/0 errors; **226 tests passed** (187 Core + 39 Web);
+`dotnet format --verify-no-changes` clean.
+
+Live UAT (scratch lake `/tmp/kilo/lake-s3`):
+
+- `lake init` twice → both succeed (idempotent); `lake status` on fresh lake reports empty tiers.
+- `doctor` fresh lake → `PASS lake tiers: gold`, 0 blockers.
+- `doctor` with an empty `gold/econdata.duckdb` → `WARN lake ... not initialized ... run lake init`, no exception.
+- `extract --metrics gdp_usd --bronze --silver --gold` → 266 bronze series rows, 13,980 silver,
+  13,980 gold, 192 derived.
+- `lake status` → `bronze rows=266`, `silver rows=13980`; `silver/gdp_usd.count` =
+  `{"Rows":13980,"Bytes":302964,...}`.
+
+---
+
+## Phase 3 — Medallion ingestion (ARCHIVED)
 - Status: **COMPLETE**, committed and pushed.
 - Commits: `ef8fcaa` (feat: medallion lake), `cee6c23` (test: real AC13 parity),
   `e4250f6` (verification-gap tests + doctor lake-only fix), `f7976d9`/`a6a61d7` (docs).

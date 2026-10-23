@@ -170,6 +170,16 @@ internal static class Program
 
         switch (action)
         {
+            case "init":
+                {
+                    var initLake = LakePaths.Resolve(root, config.LakeDir);
+                    initLake.EnsureDirectories();
+                    var initGold = new GoldTier(initLake.GoldPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger);
+                    initGold.EnsureSchema();
+                    Console.WriteLine($"Lake initialized at {initLake.LakeDir}.");
+                    return 0;
+                }
+
             case "status":
                 {
                     var status = await new LakeStatusService(lake, gold, logger).GetAsync().ConfigureAwait(false);
@@ -229,8 +239,66 @@ internal static class Program
                     return 0;
                 }
 
+            case "rebuild":
+                {
+                    var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+                    var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+                    var rebuildPath = Path.Combine(lake.GoldDir, "econdata.rebuild.duckdb");
+                    if (File.Exists(rebuildPath)) File.Delete(rebuildPath);
+                    var rebuild = new GoldTier(rebuildPath, CliPaths.Resolve(root, "sql/duckdb/schema.sql"), logger);
+                    var silver = new SilverTier(lake, logger);
+                    var partitions = silver.Partitions();
+                    if (partitions.Count == 0)
+                    {
+                        Console.WriteLine("No silver partitions found. Run `extract --silver` first.");
+                        return 1;
+                    }
+
+                    var counts = await rebuild.RebuildFromSilverAsync(seed, catalog, silver, partitions).ConfigureAwait(false);
+
+                    // Validate: per-metric gold rows must match silver rows before we swap.
+                    var silverCounts = await silver.RowCountsAsync().ConfigureAwait(false);
+                    var mismatches = new List<string>();
+                    foreach (var (code, goldRows) in counts)
+                    {
+                        if (!silverCounts.TryGetValue(code, out var silverRows) || silverRows != goldRows)
+                        {
+                            mismatches.Add(code);
+                        }
+                    }
+                    foreach (var code in partitions.Where(c => !counts.ContainsKey(c)))
+                    {
+                        mismatches.Add(code);
+                    }
+
+                    if (mismatches.Count > 0)
+                    {
+                        Console.Error.WriteLine("Rebuild validation failed; not swapping. Mismatched metrics: "
+                            + string.Join(", ", mismatches));
+                        return 1;
+                    }
+
+                    var total = counts.Values.Sum(v => (int)v);
+                    File.Move(rebuildPath, lake.GoldPath, overwrite: true);
+                    Console.WriteLine($"Gold rebuilt from {counts.Count} silver partitions: {total} observations, swapped atomically.");
+                    return 0;
+                }
+
+            case "import-from-sqlite":
+                {
+                    var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
+                    var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
+                    var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
+                    gold.EnsureSchema();
+                    gold.SeedEntities(seed.Entities, seed.Aliases);
+                    gold.SeedMemberships(seed.Memberships);
+                    gold.ImportFromSqlite(factory);
+                    Console.WriteLine($"Gold imported from SQLite at {factory.DatabasePath}.");
+                    return 0;
+                }
+
             default:
-                Console.WriteLine("Usage: lake [status|build-gold]");
+                Console.WriteLine("Usage: lake [status|build-gold|build-gold --rebuild|import-from-sqlite]");
                 return 1;
         }
     }
@@ -390,6 +458,9 @@ internal static class Program
         Console.WriteLine("  init-db                          Create the SQLite dbe_* schema and exit");
         Console.WriteLine("  check-db                         Verify the SQLite schema integrity and exit");
         Console.WriteLine("  doctor                           Readiness check (SDK, DB, schema, sqlite-vec, Ollama, LLM)");
+        Console.WriteLine("  lake init                        Idempotently initialize the lake (gold schema + directories)");
+        Console.WriteLine("  lake status                      Show bronze/silver/gold tier state");
+        Console.WriteLine("  lake build-gold                  Rebuild gold from silver partitions");
         Console.WriteLine("  extract [--metrics all|a,b] [--db]   Run the extract/transform/load pipeline");
         Console.WriteLine("  vectorize [--reembed] [--recent-points N]   Build/refresh the semantic catalog");
         Console.WriteLine("  chat [--question Q] [--k N] [--show-sources] [--system FILE]   Ask the catalog");

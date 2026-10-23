@@ -2,8 +2,11 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using DuckDB.NET.Data;
+using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
+using EconData.Core.Transform;
+using Microsoft.Data.Sqlite;
 using Serilog;
 
 namespace EconData.Core.Lake;
@@ -306,7 +309,158 @@ public sealed class GoldTier
             new[] { "val", "unit", "aggregation_method", "member_count", "covered_count", "computed_at" });
     }
 
-    // ---- Audit ----
+    // ---- Import from SQLite (one-way backfill into gold) ----
+
+
+    private void ImportEntities(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT entity_code, entity_name, entity_type, is_aggregate FROM dbe_entities";
+        using var reader = command.ExecuteReader();
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            rows.Add(new object?[]
+            {
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+            });
+        }
+
+        Upsert("dbe_entities",
+            new[] { "entity_code", "entity_name", "entity_type", "is_aggregate" },
+            rows,
+            new[] { "entity_code" },
+            new[] { "entity_name", "entity_type", "is_aggregate" });
+    }
+
+    private Dictionary<string, int> ImportMetrics(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT metric_code, metric_name, category, frequency, base_unit, unit_normalization, description, is_aggregatable, aggregation_method FROM dbe_metrics";
+        using var reader = command.ExecuteReader();
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            rows.Add(new object?[]
+            {
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.GetInt32(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+            });
+        }
+
+        Upsert("dbe_metrics",
+            new[] { "metric_code", "metric_name", "category", "frequency", "base_unit", "unit_normalization", "description", "is_aggregatable", "aggregation_method" },
+            rows,
+            new[] { "metric_code" },
+            new[] { "metric_name", "category", "frequency", "base_unit", "unit_normalization", "description", "is_aggregatable", "aggregation_method" });
+
+        return LoadMetricCodeToId();
+    }
+
+    private void ImportSources(SqliteConnection connection, IReadOnlyDictionary<string, int> metricIds)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT provider, dataset, indicator_code, metric_id, dimension_key, entity_scope FROM dbe_sources";
+        using var reader = command.ExecuteReader();
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            var metricId = reader.GetString(3);
+            if (!metricIds.TryGetValue(metricId, out _)) continue;
+
+            rows.Add(new object?[]
+            {
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                metricId,
+                reader.GetString(4),
+                reader.GetString(5),
+            });
+        }
+
+        Upsert("dbe_sources",
+            new[] { "provider", "dataset", "indicator_code", "metric_id", "dimension_key", "entity_scope" },
+            rows,
+            new[] { "provider", "dataset", "indicator_code" },
+            new[] { "metric_id", "dimension_key", "entity_scope" });
+    }
+
+    private void ImportObservations(SqliteConnection connection, IReadOnlyDictionary<string, int> metricIds)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT metric_code, entity_id, source_id, start_date, end_date, val, raw_val, unit, period_str, extracted_at FROM dbe_observations";
+        using var reader = command.ExecuteReader();
+
+        var rows = new List<object?[]>();
+        while (reader.Read())
+        {
+            var metricCode = reader.GetString(0);
+            if (!metricIds.TryGetValue(metricCode, out _)) continue;
+
+            rows.Add(new object?[]
+            {
+                metricCode,
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetDouble(5),
+                reader.IsDBNull(6) ? null : reader.GetDouble(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.GetString(9),
+            });
+        }
+
+        Upsert("dbe_observations",
+            new[] { "metric_id", "entity_id", "source_id", "start_date", "end_date", "val", "raw_val", "unit", "period_str", "extracted_at" },
+            rows,
+            new[] { "metric_id", "entity_id", "start_date", "end_date" },
+            new[] { "val", "raw_val", "unit", "period_str", "extracted_at" });
+    }
+
+    private void AggregateImportedDerived(IReadOnlyDictionary<string, int> metricIds)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            DELETE FROM dbe_derived_observations;
+
+            INSERT INTO dbe_derived_observations (metric_id, entity_id, start_date, end_date, val, unit, aggregation_method, member_count, covered_count, computed_at)
+            SELECT o.metric_id, o.entity_id, o.start_date, o.end_date,
+                   o.val, o.unit,
+                   CASE WHEN COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date) > 1 THEN 'mean' ELSE 'sum' END,
+                   COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date),
+                   COUNT(DISTINCT o.entity_id) OVER (PARTITION BY o.metric_id, o.start_date, o.end_date),
+                   strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            FROM dbe_observations o
+            GROUP BY o.metric_id, o.entity_id, o.start_date, o.end_date, o.val, o.unit;
+        ";
+        command.ExecuteNonQuery();
+    }
+
+    private long CountObservations(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM dbe_observations";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    // ---- Internal ----
 
     public void RecordRun(
         string dagId,
@@ -426,15 +580,99 @@ public sealed class GoldTier
         return written;
     }
 
-    // ---- Internals ----
+    /// <summary>Rebuilds gold from silver partitions into this instance's database file.</summary>
+    public async Task<IReadOnlyDictionary<string, long>> RebuildFromSilverAsync(
+        EntitySeed seed,
+        MetricsCatalog catalog,
+        SilverTier silver,
+        IReadOnlyList<string> metricCodes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(silver);
+        ArgumentNullException.ThrowIfNull(metricCodes);
 
-    /// <summary>DuckDB has no AddWithValue overload; parameters are added as explicit objects.</summary>
-    private static void Bind(DuckDBCommand command, string name, object? value)
-        => command.Parameters.Add(new DuckDBParameter { ParameterName = name, Value = value ?? DBNull.Value });
+        EnsureSchema();
+        SeedEntities(seed.Entities, seed.Aliases);
+        SeedMemberships(seed.Memberships);
 
-    /// <summary>Positional bind for the positional '?' placeholders DuckDB.NET requires.</summary>
-    private static void Bind(DuckDBCommand command, object? value)
-        => command.Parameters.Add(new DuckDBParameter { Value = value ?? DBNull.Value });
+        var records = DataTransformer.CreateMetricsRecords(catalog);
+        UpsertMetrics(records);
+        var (metricIds, _) = GetMetricAndSourceIds();
+        UpsertSources(records, metricIds);
+        (metricIds, var sourceIds) = GetMetricAndSourceIds();
+
+        var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
+        var total = 0;
+        var providers = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var code in metricCodes)
+        {
+            var metric = catalog.Get(code);
+            if (metric is null) continue;
+            providers.Add(metric.Provider);
+
+            if (!metricIds.TryGetValue(code, out var metricId)
+                || !sourceIds.TryGetValue(code, out var sourceId))
+            {
+                continue;
+            }
+
+            var rows = await silver.ReadAsync(code, cancellationToken).ConfigureAwait(false);
+            var written = UpsertObservations(code, rows, metricId, sourceId);
+            counts[code] = written;
+            total += written;
+
+            if (string.Equals(metric.Aggregation, "sum", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(metric.Aggregation, "mean", StringComparison.OrdinalIgnoreCase))
+            {
+                Aggregate(code, metric.Aggregation, metric.EffectiveBaseUnit, metricIds);
+            }
+        }
+
+        RecordRun(
+            "econdata_manual",
+            "rebuild_gold",
+            counts.Count,
+            total,
+            0,
+            providers.ToList(),
+            sourceIds.Values.ToList(),
+            "SUCCESS",
+            0,
+            "G");
+
+        _logger.Information("Gold rebuilt from {Partitions} silver partitions: {Total} observations.", counts.Count, total);
+        return counts;
+    }
+
+    // ---- Import from SQLite (one-way backfill into gold) ----
+
+    public void ImportFromSqlite(SqliteConnectionFactory sqliteFactory)
+    {
+        ArgumentNullException.ThrowIfNull(sqliteFactory);
+
+        using var connection = sqliteFactory.OpenReadOnly();
+
+        // 1. Entities
+        ImportEntities(connection);
+
+        // 2. Metrics
+        var metricIds = ImportMetrics(connection);
+
+        // 3. Sources
+        ImportSources(connection, metricIds);
+
+        // 4. Observations
+        ImportObservations(connection, metricIds);
+
+        // 5. Derived aggregation
+        AggregateImportedDerived(metricIds);
+
+        _logger.Information("Import from SQLite complete: {MetricCount} metrics, {ObservationCount} observations.",
+            metricIds.Count, CountObservations(connection));
+    }
+
 
     private static string Date(DateOnly value) => value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -515,4 +753,13 @@ public sealed class GoldTier
         transaction.Commit();
         return total;
     }
+    // ---- Internal ----
+
+    private static void Bind(DuckDBCommand command, string name, object? value)
+        => command.Parameters.Add(new DuckDBParameter { ParameterName = name, Value = value ?? DBNull.Value });
+
+    /// <summary>Positional bind for the positional '?' placeholders DuckDB.NET requires.</summary>
+    private static void Bind(DuckDBCommand command, object? value)
+        => command.Parameters.Add(new DuckDBParameter { Value = value ?? DBNull.Value });
+
 }

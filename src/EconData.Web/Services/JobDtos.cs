@@ -8,7 +8,8 @@ public enum JobKind
     Init,
     Extract,
     Vectorize,
-    RunAll
+    RunAll,
+    Rebuild
 }
 
 public sealed record JobRequest(

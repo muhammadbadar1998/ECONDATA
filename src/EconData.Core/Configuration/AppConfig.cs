@@ -20,6 +20,7 @@ public sealed class AppConfig
     public const string DefaultLlmBaseUrl = "http://127.0.0.1:11434/v1";
     public const string DefaultLlmModel = "qwen2.5:7b-instruct";
     public const string DefaultDbNomicsBaseUrl = "https://api.db.nomics.world/v22";
+    public const string DefaultServingStore = "auto";
 
     public static string DefaultSqliteVecExtensionPath { get; } = ComputeSqliteVecExtensionPath();
 
@@ -42,6 +43,7 @@ public sealed class AppConfig
     public int RagTopK { get; init; } = 8;
     public int RagRecentPoints { get; init; } = 5;
     public string LogLevel { get; init; } = "INFO";
+    public string ServingStore { get; init; } = DefaultServingStore;
 
     public static AppConfig FromConfiguration(IConfiguration configuration)
     {
@@ -67,6 +69,7 @@ public sealed class AppConfig
             RagTopK = GetInt(configuration, "RAG_TOP_K", 8),
             RagRecentPoints = GetInt(configuration, "RAG_RECENT_POINTS", 5),
             LogLevel = (configuration["LOG_LEVEL"] ?? "INFO").ToUpperInvariant(),
+            ServingStore = (configuration["ECONDATA_SERVING_STORE"] ?? DefaultServingStore).ToUpperInvariant(),
         };
     }
 

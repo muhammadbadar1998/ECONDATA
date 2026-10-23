@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using EconData.Core.Data;
 using Parquet;
 using Parquet.Schema;
@@ -70,6 +71,14 @@ public sealed class SilverTier
                 .Select(o => o.ExtractedAt.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture))
                 .ToArray());
         }
+
+        var sidecar = new Sidecar
+        {
+            Rows = observations.Count,
+            Bytes = new FileInfo(path).Length,
+            WrittenAt = DateTimeOffset.UtcNow,
+        };
+        await File.WriteAllTextAsync(SidecarFile(metricCode), JsonSerializer.Serialize(sidecar), cancellationToken);
 
         _logger.Information("Silver: wrote {Count} observations for '{Metric}' to {Path}.", observations.Count, metricCode, path);
         return observations.Count;
@@ -144,24 +153,74 @@ public sealed class SilverTier
             .ToList();
     }
 
+    private string SidecarFile(string metricCode) => Path.ChangeExtension(_paths.SilverFile(metricCode), ".count");
+
+    private sealed class Sidecar
+    {
+        public long Rows { get; set; }
+        public long Bytes { get; set; }
+        public DateTimeOffset WrittenAt { get; set; }
+    }
+
     /// <summary>Row count per metric partition, for the lake status page.</summary>
     public async Task<IReadOnlyDictionary<string, long>> RowCountsAsync(CancellationToken cancellationToken = default)
     {
         var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
         foreach (var metric in Partitions())
         {
-            await using var stream = File.OpenRead(_paths.SilverFile(metric));
-            await using var reader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken);
-            long total = 0;
-            for (var i = 0; i < reader.RowGroupCount; i++)
+            var parquet = _paths.SilverFile(metric);
+            var sidecar = SidecarFile(metric);
+            long rows;
+
+            if (SidecarIsFresh(sidecar, parquet) && TryReadSidecar(sidecar, out var saved))
             {
-                using var group = reader.OpenRowGroupReader(i);
-                total += group.RowCount;
+                rows = saved;
+            }
+            else
+            {
+                rows = await ScanRows(parquet, cancellationToken);
             }
 
-            counts[metric] = total;
+            counts[metric] = rows;
         }
 
         return counts;
+    }
+
+    private static async Task<long> ScanRows(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        await using var reader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken);
+        long total = 0;
+        for (var i = 0; i < reader.RowGroupCount; i++)
+        {
+            using var group = reader.OpenRowGroupReader(i);
+            total += group.RowCount;
+        }
+        return total;
+    }
+
+    private static bool SidecarIsFresh(string sidecar, string parquet)
+        => File.Exists(sidecar) && File.Exists(parquet)
+           && File.GetLastWriteTimeUtc(sidecar) >= File.GetLastWriteTimeUtc(parquet);
+
+    private static bool TryReadSidecar(string sidecar, out long rows)
+    {
+        rows = 0;
+        try
+        {
+            var json = File.ReadAllText(sidecar);
+            var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("rows", out var rowsElement))
+            {
+                rows = rowsElement.GetInt64();
+                return true;
+            }
+        }
+        catch
+        {
+            // fall back to a scan
+        }
+        return false;
     }
 }
