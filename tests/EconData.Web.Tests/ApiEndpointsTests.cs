@@ -19,7 +19,7 @@ public class ApiEndpointsTests : IClassFixture<WebAppFixture>
         var coverage = await _client.GetFromJsonAsync<IReadOnlyList<MetricCoverage>>("/api/coverage");
 
         Assert.NotNull(coverage);
-        Assert.Equal(9, coverage!.Count);
+        Assert.Equal(26, coverage!.Count);
         var gdpUsd = coverage.FirstOrDefault(c => c.MetricCode == "gdp_usd");
         Assert.NotNull(gdpUsd);
         Assert.NotNull(gdpUsd!.MinPeriod);
@@ -77,7 +77,7 @@ public class ApiEndpointsTests : IClassFixture<WebAppFixture>
     {
         var all = await _client.GetFromJsonAsync<IReadOnlyList<EntitySummary>>("/api/entities?limit=1000");
         Assert.NotNull(all);
-        Assert.Equal(80, all!.Count);
+        Assert.Equal(85, all!.Count);
 
         var usa = await _client.GetFromJsonAsync<IReadOnlyList<EntitySummary>>("/api/entities?q=USA&limit=10");
         Assert.NotNull(usa);

@@ -72,7 +72,7 @@ public class GoldAnalyticsTests : IDisposable
         var overview = _analytics.GetOverview();
 
         Assert.Equal(3, overview.ObservationCount);
-        Assert.Equal(9, overview.MetricCount);
+        Assert.Equal(26, overview.MetricCount);
         Assert.True(overview.EntityCount >= 3);
         Assert.Equal(0, overview.EmbeddingCount);
         Assert.Equal("SUCCESS", overview.LastRunStatus);

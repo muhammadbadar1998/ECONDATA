@@ -559,6 +559,41 @@
       "entity_type": "country",
       "is_aggregate": false,
       "parent_entity_code": "SSA"
+    },
+    {
+      "entity_code": "ASEAN",
+      "entity_name": "ASEAN",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "MERCOSUR",
+      "entity_name": "Mercosur",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "CPTPP",
+      "entity_name": "CPTPP",
+      "entity_type": "aggregate",
+      "is_aggregate": true,
+      "parent_entity_code": "WLD"
+    },
+    {
+      "entity_code": "PRY",
+      "entity_name": "Paraguay",
+      "entity_type": "country",
+      "is_aggregate": false,
+      "parent_entity_code": "TLA"
+    },
+    {
+      "entity_code": "URY",
+      "entity_name": "Uruguay",
+      "entity_type": "aggregate",
+      "is_aggregate": false,
+      "parent_entity_code": "TLA"
     }
   ],
   "aliases": [
@@ -1046,6 +1081,86 @@
       "provider": "WB",
       "provider_code": "G7",
       "entity_code": "G7"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "IDN",
+      "entity_code": "IDN"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "MYS",
+      "entity_code": "MYS"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "PHL",
+      "entity_code": "PHL"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "THA",
+      "entity_code": "THA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "VNM",
+      "entity_code": "VNM"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "SGP",
+      "entity_code": "SGP"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "ARG",
+      "entity_code": "ARG"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "BRA",
+      "entity_code": "BRA"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "PRY",
+      "entity_code": "PRY"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "URY",
+      "entity_code": "URY"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "JPN",
+      "entity_code": "JPN"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "CAN",
+      "entity_code": "CAN"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "AUS",
+      "entity_code": "AUS"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "NZL",
+      "entity_code": "NZL"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "CHL",
+      "entity_code": "CHL"
+    },
+    {
+      "provider": "WB",
+      "provider_code": "PER",
+      "entity_code": "PER"
     }
   ],
   "memberships": {
@@ -1131,6 +1246,31 @@
       "HRV",
       "BGR",
       "ROU"
+    ],
+    "ASEAN": [
+      "IDN",
+      "MYS",
+      "PHL",
+      "THA",
+      "VNM",
+      "SGP"
+    ],
+    "MERCOSUR": [
+      "ARG",
+      "BRA",
+      "PRY",
+      "URY"
+    ],
+    "CPTPP": [
+      "JPN",
+      "CAN",
+      "AUS",
+      "NZL",
+      "CHL",
+      "MYS",
+      "VNM",
+      "PER",
+      "CL"
     ]
   }
 }

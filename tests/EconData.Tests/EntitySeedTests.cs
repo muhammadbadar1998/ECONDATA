@@ -11,9 +11,9 @@ public class EntitySeedTests
     {
         var seed = Load();
 
-        Assert.Equal(80, seed.Entities.Count);
-        Assert.Equal(97, seed.Aliases.Count);
-        Assert.Equal(77, seed.MembershipCount);
+        Assert.Equal(85, seed.Entities.Count);
+        Assert.Equal(113, seed.Aliases.Count);
+        Assert.Equal(96, seed.MembershipCount);
     }
 
     [Fact]

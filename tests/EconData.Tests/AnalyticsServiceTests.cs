@@ -61,7 +61,7 @@ public class AnalyticsServiceTests : IDisposable
     {
         var coverage = _analytics.GetMetricCoverage();
 
-        Assert.Equal(9, coverage.Count);
+        Assert.Equal(26, coverage.Count);
         var gdpUsd = coverage.FirstOrDefault(c => c.MetricCode == "gdp_usd");
         Assert.NotNull(gdpUsd);
         Assert.NotNull(gdpUsd!.MinPeriod);
@@ -156,7 +156,7 @@ public class AnalyticsServiceTests : IDisposable
     public void GetEntities_ReturnsSeedEntitiesAndFilters()
     {
         var all = _analytics.GetEntities(null, null, 1000);
-        Assert.Equal(80, all.Count);
+        Assert.Equal(85, all.Count);
 
         var usa = _analytics.GetEntities("USA", null, 10);
         Assert.Single(usa);

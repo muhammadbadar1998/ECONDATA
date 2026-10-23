@@ -9,7 +9,7 @@ public class MetricsCatalogTests
     {
         var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
 
-        Assert.Equal(9, catalog.Codes.Count);
+        Assert.Equal(26, catalog.Codes.Count);
         Assert.NotNull(catalog.Get("gdp_usd"));
     }
 

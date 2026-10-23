@@ -80,7 +80,7 @@ public class JobApiTests : IClassFixture<JobsWebAppFixture>
         var metrics = await _client.GetFromJsonAsync<IReadOnlyList<MetricItem>>("/api/catalog/metrics");
 
         Assert.NotNull(metrics);
-        Assert.Equal(9, metrics!.Count);
+        Assert.Equal(26, metrics!.Count);
         Assert.Contains(metrics, metric => metric.Code == "gdp_usd");
     }
 

@@ -62,7 +62,7 @@ public class PipelineRunnerTests : IDisposable
         using var connection = _factory.Open();
         Assert.Equal(3, ScalarLong(connection, "SELECT count(*) FROM dbe_observations"));
         Assert.Equal(1, ScalarLong(connection, "SELECT count(*) FROM dbe_pipeline_runs"));
-        Assert.Equal(9, ScalarLong(connection, "SELECT count(*) FROM dbe_metrics"));
+        Assert.Equal(26, ScalarLong(connection, "SELECT count(*) FROM dbe_metrics"));
 
         using var latest = connection.CreateCommand();
         latest.CommandText = "SELECT value FROM v_latest_metrics_snapshot WHERE country_code = 'USA' AND metric_code = 'gdp_usd'";

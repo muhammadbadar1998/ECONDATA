@@ -17,7 +17,7 @@ public class VectorDocumentTests
     {
         var documents = Vectorizer.BuildMetricDocuments(MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json")));
 
-        Assert.Equal(9, documents.Count);
+        Assert.Equal(26, documents.Count);
         var gdp = documents.Single(document => document.DocKey == "gdp_usd");
         Assert.Equal("metric", gdp.DocType);
         Assert.Contains("Gross Domestic Product", gdp.Content);
