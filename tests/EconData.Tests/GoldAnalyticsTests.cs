@@ -129,6 +129,7 @@ public class GoldAnalyticsTests : IDisposable
         Assert.Equal("SUCCESS", run.Status);
         Assert.Equal(1, run.MetricsExtracted);
         Assert.Equal(3, run.ObservationsUpserted);
+        Assert.Equal("B/S/G", run.TiersWritten);
     }
 
     [Fact]

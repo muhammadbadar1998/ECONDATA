@@ -77,6 +77,7 @@ public sealed class DiagnosticsService
             checks.Add(new CheckResult("integrity", Diagnosis.Warn, "database absent"));
             checks.Add(new CheckResult("schema", Diagnosis.Warn, "database absent"));
             checks.Add(new CheckResult("vector", Diagnosis.Warn, "database absent"));
+            AddLakeCheck(checks);
             await AddProbeChecksAsync(checks, cancellationToken).ConfigureAwait(false);
             return new DoctorReport(checks);
         }

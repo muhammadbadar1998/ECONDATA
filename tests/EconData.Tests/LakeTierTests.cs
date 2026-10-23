@@ -4,6 +4,7 @@ using EconData.Core.Entities;
 using EconData.Core.Extraction;
 using EconData.Core.Lake;
 using Microsoft.Data.Sqlite;
+using Parquet;
 using Serilog;
 
 namespace EconData.Tests;
@@ -258,6 +259,40 @@ public class LakeTierTests : IDisposable
         Assert.True(r.Read());
         Assert.Equal(30.0, r.GetDouble(0));
         Assert.Equal("derived", r.GetString(1));
+    }
+
+    [Fact]
+    public async Task BronzeAndSilverParquetHaveTheDocumentedColumns()
+    {
+        var bronze = new BronzeTier(_paths, _logger);
+        await bronze.AppendAsync("gdp_usd", new[] { RawSeries("USA", new[] { "2020" }, new[] { "10" }) }, _catalog, "run1");
+
+        var bronzeFile = Assert.Single(bronze.BronzeFiles("gdp_usd"));
+        Assert.Equal(
+            new[]
+            {
+                "metric_code", "provider", "dataset", "indicator_code", "series_name",
+                "dimensions_json", "periods_json", "values_json", "run_id", "fetched_at",
+            },
+            await ColumnNames(bronzeFile));
+
+        var silver = new SilverTier(_paths, _logger);
+        await silver.WriteAsync("gdp_usd", new[] { Obs("USA", 2020, 10) });
+
+        Assert.Equal(
+            new[]
+            {
+                "metric_code", "entity_code", "entity_name", "start_date", "end_date",
+                "val", "raw_val", "unit", "period_str", "extracted_at",
+            },
+            await ColumnNames(_paths.SilverFile("gdp_usd")));
+    }
+
+    private static async Task<IReadOnlyList<string>> ColumnNames(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        await using var reader = await ParquetReader.CreateAsync(stream);
+        return reader.Schema.Fields.Select(field => field.Name).ToList();
     }
 
     private static RawSeries RawSeries(string country, string?[] periods, string?[] values)

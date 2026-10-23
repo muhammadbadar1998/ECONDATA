@@ -2,6 +2,7 @@ using System.Globalization;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Diagnostics;
+using EconData.Core.Lake;
 using Microsoft.Data.Sqlite;
 using Serilog;
 
@@ -183,6 +184,64 @@ public class DiagnosticsServiceTests : IDisposable
         Assert.Equal(Diagnosis.Warn, llm.Diagnosis);
         Assert.Contains("timed out", llm.Detail, StringComparison.OrdinalIgnoreCase);
         gate.TrySetResult(true);
+    }
+
+    [Fact]
+    public async Task WarnsWhenLakeAbsent()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "econdata-doctor-lake-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var report = await CreateWithLake(dir).RunAsync();
+            var lake = report.Checks.Single(c => c.Name == "lake");
+            Assert.Equal(Diagnosis.Warn, lake.Diagnosis);
+            Assert.Contains("not built", lake.Detail, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PassesWhenGoldIsPresent()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "econdata-doctor-lake-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var lakePaths = new LakePaths(Path.Combine(dir, "lake"));
+            lakePaths.EnsureDirectories();
+            new GoldTier(
+                    lakePaths.GoldPath,
+                    Path.Combine(TestPaths.RepoRoot, "sql", "duckdb", "schema.sql"),
+                    _logger)
+                .EnsureSchema();
+
+            var report = await CreateWithLake(lakePaths.LakeDir).RunAsync();
+            var lake = report.Checks.Single(c => c.Name == "lake");
+            Assert.Equal(Diagnosis.Pass, lake.Diagnosis);
+            Assert.Contains("gold", lake.Detail, StringComparison.Ordinal);
+            Assert.False(report.HasBlockers);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private DiagnosticsService CreateWithLake(string lakeDir)
+    {
+        var baseCfg = AppConfig.Load(TestPaths.RepoRoot);
+        var cfg = new AppConfig
+        {
+            SqlitePath = baseCfg.SqlitePath,
+            MetricsConfigPath = baseCfg.MetricsConfigPath,
+            EntitiesConfigPath = baseCfg.EntitiesConfigPath,
+            SqliteVecExtensionPath = baseCfg.SqliteVecExtensionPath,
+            LakeDir = lakeDir,
+        };
+        return new DiagnosticsService(cfg, _factory, _logger);
     }
 
     private int CountTables()
