@@ -2,13 +2,23 @@
 
 ## Open
 
-- **`ServingStore` is defined but never consumed.** `AppConfig.ServingStore` /
-  `ECONDATA_SERVING_STORE` exists, but `AnalyticsService` and `Vectorizer` still use the
-  hard-coded `auto` behaviour (gold if present, else SQLite). Strict `gold` (fail if gold
-  is missing) and forced `sqlite` modes from the Sprint 3 plan (deliverable B1) are **not**
-  implemented. The config value is currently inert.
-- **`docs/DEPLOY.md` has no backfill runbook.** `lake import-from-sqlite` now works, but the
-  documented migration sequence (backfill → verify → switch serving → roll back) is missing.
+Plan of record: `.kilo/plans/1792630353409-sprint3-open-items-serving-store-and-runbook.md`.
+
+- **Implement `ECONDATA_SERVING_STORE` for structured analytics only.**
+  `AppConfig.ServingStore` exists but nothing reads it; `AnalyticsService` always uses
+  gold-if-present-else-SQLite. Add `auto | gold | sqlite`, with strict `gold` failing fast
+  when the gold file is missing. **`Vectorizer` and chat are intentionally out of scope:**
+  the `sqlite-vec` index — and future ingested document chunks — live in SQLite, so chat
+  must keep using SQLite under every serving mode.
+- **Web chat builds documents without gold.** `Web/Program.cs:85-91` constructs the
+  `IDocumentSearcher` `Vectorizer` with no `GoldTier`, so a lake-only deployment builds
+  coverage documents from empty SQLite tables. CLI `vectorize`/`chat`
+  (`Cli/Program.cs:357, 376`) have the same gap. Pass a gold tier for *document building
+  only*; vectors stay in SQLite.
+- **Backfill ergonomics and runbook missing.** `lake import-from-sqlite` has no
+  `--dry-run` and prints no source-vs-gold parity counts; `docs/DEPLOY.md` has no migration
+  sequence (backup → `lake init` → dry-run → import → verify → switch serving mode →
+  rollback to `sqlite`).
 
 ## Follow-ups (non-blocking)
 
