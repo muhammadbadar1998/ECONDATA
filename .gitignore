@@ -58,6 +58,4 @@ output/dashboards.json
 # Local agent workspace
 .kilocode/
 
-# Kilo project instructions are committed; only the scratch working docs and plans are local
-.kilo/work/
-.kilo/plans/
+# Kilo project instructions, plans and working docs are committed with the repo
