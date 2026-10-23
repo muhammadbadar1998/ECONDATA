@@ -332,6 +332,190 @@ public sealed class AnalyticsService
         return list;
     }
 
+    // ---- Growth (year-over-year or CAGR) ----
+
+    public IReadOnlyList<GrowthPoint> GetGrowth(string metricCode, string entityCode, string kind, int periods)
+    {
+        periods = Math.Clamp(periods, 1, 50);
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+
+        // Get all observations for the metric/entity ordered by start_date
+        command.CommandText = @"
+            SELECT start_date, val
+            FROM dbe_observations
+            WHERE metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric)
+              AND entity_id = (SELECT entity_id FROM dbe_entities WHERE entity_code = @entity)
+            ORDER BY start_date ASC";
+        command.Bind("@metric", metricCode);
+        command.Bind("@entity", entityCode);
+
+        var points = new List<(string StartDate, double Val)>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            points.Add((reader.GetString(0), reader.GetDouble(1)));
+        }
+
+        var results = new List<GrowthPoint>();
+        for (int i = 1; i < points.Count; i++)
+        {
+            var prev = points[i - 1];
+            var curr = points[i];
+
+            if (string.Equals(kind, "yoy", StringComparison.OrdinalIgnoreCase))
+            {
+                // Year-over-year: compare same period year-over-year
+                if (curr.StartDate.StartsWith(prev.StartDate.Substring(0, 4))) continue; // same year
+                var prevYear = int.Parse(prev.StartDate.Substring(0, 4));
+                var currYear = int.Parse(curr.StartDate.Substring(0, 4));
+                if (currYear != prevYear + 1) continue; // not consecutive years
+
+                var growth = (curr.Val - prev.Val) / Math.Abs(prev.Val) * 100.0;
+                results.Add(new GrowthPoint(curr.StartDate, curr.Val, growth));
+            }
+            else
+            {
+                // CAGR over the whole period
+                break;
+            }
+        }
+
+        // For YoY: return only the most recent growth computation
+        if (string.Equals(kind, "yoy", StringComparison.OrdinalIgnoreCase) && results.Count > 0)
+            results = results.TakeLast(1).ToList();
+
+        // For CAGR: compute over the full range
+        if (string.Equals(kind, "cagr", StringComparison.OrdinalIgnoreCase) && points.Count >= 2)
+        {
+            var first = points.First();
+            var last = points.Last();
+            var years = double.Parse(last.StartDate.Substring(0, 4)) - double.Parse(first.StartDate.Substring(0, 4));
+            if (years > 0 && first.Val != 0)
+            {
+                var cagr = (Math.Pow(last.Val / first.Val, 1.0 / years) - 1.0) * 100.0;
+                results.Add(new GrowthPoint(last.StartDate, last.Val, cagr));
+            }
+        }
+
+        return results.Take(periods).ToList();
+    }
+
+    public IReadOnlyList<RankingRow> GetRanking(string metricCode, string period, string direction, int limit)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+        var order = string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) ? "DESC" : "ASC";
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT e.entity_code, e.entity_name, o.val
+            FROM dbe_observations o
+            JOIN dbe_entities e ON o.entity_id = e.entity_id
+            WHERE o.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric)
+              AND o.start_date = @period
+              AND o.entity_id NOT IN (SELECT entity_id FROM dbe_entities WHERE is_aggregate = 1)
+            ORDER BY o.val " + order + @"
+            LIMIT @limit";
+        command.Bind("@metric", metricCode);
+        command.Bind("@period", period);
+        command.Bind("@limit", limit);
+
+        var list = new List<RankingRow>();
+        using var reader = command.ExecuteReader();
+        var rank = 1;
+        using (reader)
+        {
+            while (reader.Read())
+            {
+                list.Add(new RankingRow(
+                    rank++,
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.GetDouble(2),
+                    period));
+            }
+        }
+        return list;
+    }
+
+    public IReadOnlyList<CorrelationResult> GetCorrelation(string metricCode1, string metricCode2, string period)
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            SELECT o1.entity_id, o1.val, o2.val
+            FROM dbe_observations o1
+            JOIN dbe_observations o2 ON o1.entity_id = o2.entity_id AND o1.start_date = o2.start_date
+            WHERE o1.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric1)
+              AND o2.metric_id = (SELECT metric_id FROM dbe_metrics WHERE metric_code = @metric2)
+              AND o1.start_date = @period
+              AND o2.start_date = @period";
+        command.Bind("@metric1", metricCode1);
+        command.Bind("@metric2", metricCode2);
+        command.Bind("@period", period);
+
+        var pairs = new List<(double X, double Y)>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            pairs.Add((reader.GetDouble(1), reader.GetDouble(2)));
+        }
+
+        if (pairs.Count == 0)
+            return new List<CorrelationResult>();
+
+        if (pairs.Count == 1)
+        {
+            // Single point: correlation with itself is 1.0
+            return new List<CorrelationResult>
+            {
+                new(metricCode1, metricCode2, period, 1, 1.0)
+            };
+        }
+
+        var n = pairs.Count;
+        var sumX = pairs.Sum(p => p.X);
+        var sumY = pairs.Sum(p => p.Y);
+        var sumXY = pairs.Sum(p => p.X * p.Y);
+        var sumX2 = pairs.Sum(p => p.X * p.X);
+        var sumY2 = pairs.Sum(p => p.Y * p.Y);
+
+        var numerator = n * sumXY - sumX * sumY;
+        var denominator = Math.Sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+        var r = denominator == 0 ? 0 : numerator / denominator;
+
+        return new List<CorrelationResult>
+        {
+            new(metricCode1, metricCode2, period, pairs.Count, r)
+        };
+    }
+
+    public IReadOnlyList<FreshnessRecord> GetFreshness()
+    {
+        using var connection = Open();
+        var freshnessSql = @"
+            SELECT m.metric_code, MAX(o.start_date) AS latest, COUNT(o.id) AS row_count,
+                   CAST(strftime('%Y', 'now') AS INTEGER) - CAST(strftime('%Y', MAX(o.start_date)) AS INTEGER) AS lag_years
+            FROM dbe_metrics m
+            LEFT JOIN dbe_observations o ON m.metric_id = o.metric_id
+            GROUP BY m.metric_code
+            ORDER BY m.metric_code";
+        using var command = connection.CreateCommand();
+        command.CommandText = freshnessSql;
+
+        var list = new List<FreshnessRecord>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            list.Add(new FreshnessRecord(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? 0 : Convert.ToInt32(reader.GetValue(2)),
+                reader.IsDBNull(3) ? null : reader.GetInt32(3)));
+        }
+        return list;
+    }
+
     private static SeriesPoint Series(System.Data.Common.DbDataReader reader, bool withSourceKind)
         => new(
             EntityCode: reader.GetString(0),

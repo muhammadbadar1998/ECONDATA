@@ -135,6 +135,10 @@ app.MapGet("/api/series", (AnalyticsService analytics, string entity, string met
 app.MapGet("/api/snapshot", (AnalyticsService analytics, string? entity, string? metric, string? category, int limit = 200) => Results.Ok(analytics.GetLatestSnapshot(entity, metric, category, limit)));
 app.MapGet("/api/entities", (AnalyticsService analytics, string? q, string? type, int limit = 500) => Results.Ok(analytics.GetEntities(q, type, limit)));
 app.MapGet("/api/runs", (AnalyticsService analytics, int limit = 50) => Results.Ok(analytics.GetRuns(limit)));
+app.MapGet("/api/analytics/growth", (AnalyticsService analytics, string metric, string entity, string kind = "yoy", int periods = 10) => Results.Ok(analytics.GetGrowth(metric, entity, kind, periods)));
+app.MapGet("/api/analytics/ranking", (AnalyticsService analytics, string metric, string period, string direction = "desc", int limit = 10) => Results.Ok(analytics.GetRanking(metric, period, direction, limit)));
+app.MapGet("/api/analytics/correlation", (AnalyticsService analytics, string metricA, string metricB, string period) => Results.Ok(analytics.GetCorrelation(metricA, metricB, period)));
+app.MapGet("/api/analytics/freshness", (AnalyticsService analytics) => Results.Ok(analytics.GetFreshness()));
 app.MapGet("/api/lake/status", async (LakeStatusService lake) => Results.Ok(await lake.GetAsync()));
 
 app.MapGet("/api/catalog/metrics", (MetricsCatalog catalog) => Results.Ok(catalog.ByCode

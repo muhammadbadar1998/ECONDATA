@@ -193,4 +193,51 @@ public class AnalyticsServiceTests : IDisposable
             return Task.FromResult<IReadOnlyList<RawSeries>>(new[] { series });
         }
     }
+
+    [Fact]
+    public void Growth_ReturnsYearOverYearGrowth()
+    {
+        var growth = _analytics.GetGrowth("gdp_usd", "USA", "yoy", 10);
+
+        Assert.Single(growth);
+        Assert.Equal("2024-01-01", growth[0].Period);
+        Assert.Equal(300.0, growth[0].Value);
+        // (300 - 200) / 200 * 100 = 50%
+        Assert.Equal(50.0, growth[0].GrowthPct);
+    }
+
+    [Fact]
+    public void Ranking_ReturnsTopMetrics()
+    {
+        var ranking = _analytics.GetRanking("gdp_usd", "2024-01-01", "desc", 10);
+
+        Assert.Single(ranking);
+        Assert.Equal("USA", ranking[0].EntityCode);
+        Assert.Equal("United States", ranking[0].EntityName);
+        Assert.Equal(300.0, ranking[0].Value);
+    }
+
+    [Fact]
+    public void Freshness_ReturnsObservationInfo()
+    {
+        var freshness = _analytics.GetFreshness();
+
+        var gdp = freshness.FirstOrDefault(f => f.MetricCode == "gdp_usd");
+        Assert.NotNull(gdp);
+        Assert.Equal("2024-01-01", gdp.LatestPeriod);
+        Assert.Equal(3, gdp.RowCount);
+    }
+
+    [Fact]
+    public void Correlation_ReturnsCorrelationForSameMetric()
+    {
+        var corr = _analytics.GetCorrelation("gdp_usd", "gdp_usd", "2024-01-01");
+
+        Assert.Single(corr);
+        Assert.Equal("gdp_usd", corr[0].MetricCode1);
+        Assert.Equal("gdp_usd", corr[0].MetricCode2);
+        Assert.Equal("2024-01-01", corr[0].Period);
+        Assert.Equal(1, corr[0].N);
+        Assert.Equal(1.0, corr[0].Correlation);
+    }
 }
