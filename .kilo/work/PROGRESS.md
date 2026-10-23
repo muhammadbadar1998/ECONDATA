@@ -1,9 +1,9 @@
 # Progress
 
 - Phase: Phase 3 — Medallion ingestion
-- Status: **COMPLETE** and committed.
-- Commits: `ef8fcaa` (feat: medallion lake), `cee6c23` (test: real AC13 parity), plus the
-  final verification commit described below.
+- Status: **COMPLETE**, committed and pushed.
+- Commits: `ef8fcaa` (feat: medallion lake), `cee6c23` (test: real AC13 parity),
+  `e4250f6` (verification-gap tests + doctor lake-only fix), `f7976d9`/`a6a61d7` (docs).
 
 ## Gate
 

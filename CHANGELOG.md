@@ -25,6 +25,8 @@ All notable changes to this project are documented here. Format loosely follows
 ### Changed
 - `dbe_pipeline_runs.tiers_written` records which tiers a run wrote (SQLite gains the
   column via an additive `ALTER TABLE` migration on existing databases).
+- `doctor`'s `lake` check now also runs when the SQLite database is absent, so a
+  lake-only deployment reports tier status instead of returning early.
 - `backup --to <path>` CLI command: consistent `VACUUM INTO` snapshot that needs no
   external `sqlite3` binary.
 - Derived aggregates layer: opt-in `aggregation` key (`sum`/`mean`, default `none`) in

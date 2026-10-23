@@ -241,7 +241,8 @@ Completed and committed. Final gate: build 0 warnings / 0 errors, **221 tests**
 
 - `ef8fcaa` — feat: medallion lake (bronze/silver/gold) ingestion
 - `cee6c23` — test: make AC13 parity test actually call the API
-- final commit — verification-gap tests (AC10/AC12/AC20), doctor lake-only fix, doc refresh
+- `e4250f6` — verification-gap tests (AC10/AC12/AC20) and doctor lake-only fix
+- `f7976d9`, `a6a61d7` — docs: commit the Kilo plans and working docs
 
 Known non-blocking follow-ups are tracked in `.kilo/work/ISSUES.md`.
 
