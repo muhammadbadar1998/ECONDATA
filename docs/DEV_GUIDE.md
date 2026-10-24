@@ -165,6 +165,7 @@ win), with compiled defaults. None are secrets — the store is a local file.
 | `ECONDATA_SQLITE_PATH` | `./output/econdata.db` | SQLite database file |
 | `OUTPUT_DIR` | `./output` | Log directory |
 | `ECONDATA_LAKE_DIR` | `./output/lake` | Medallion lake root (bronze/silver/gold) |
+| `ECONDATA_SERVING_STORE` | `auto` | Where structured analytics read: `auto` (gold if present, else SQLite), `gold` (fail fast if missing), `sqlite` (force SQLite). Chat/vectors always use SQLite |
 | `ECONDATA_SQLITE_VEC_PATH` | `./native/sqlite-vec/<rid>/vec0.{dll,so,dylib}` | sqlite-vec extension |
 | `CONFIG_PATH` | `./config/metrics.json` | Metric catalog |
 | `ECONDATA_ENTITIES_PATH` | `./config/entities.json` | Entity/alias/membership seed |

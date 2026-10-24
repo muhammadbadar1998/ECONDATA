@@ -11,7 +11,17 @@ All notable changes to this project are documented here. Format loosely follows
   under `output/lake/`. `extract` gains `--bronze`, `--silver`, `--gold`; `--db` still
   means "load to SQLite" and a run with no tier flags never touches the lake.
 - `lake status` and `lake build-gold` CLI commands; `lake build-gold` rebuilds the
-  DuckDB gold tier from silver Parquet with no network access.
+  DuckDB gold tier from silver Parquet with no network access. `lake build-gold --rebuild`
+  builds into a temporary file, validates, then swaps atomically.
+- `lake init` (idempotent gold schema bootstrap) and `lake import-from-sqlite`
+  (one-way backfill from an existing SQLite database using natural keys; `--dry-run`
+  prints source counts and writes nothing).
+- `ECONDATA_SERVING_STORE` (`auto | gold | sqlite`) controls where structured analytics
+  read from. `gold` fails fast when the gold database is missing; `sqlite` forces SQLite.
+  Chat and the vector index always use SQLite.
+- `GET /api/analytics/growth`, `/ranking`, `/correlation`, and `/freshness`.
+- Data breadth: 17 new World Bank indicators (26 metrics total) and three aggregate
+  groups (ASEAN, Mercosur, CPTPP) with memberships.
 - `GET /api/lake/status` plus a **Lake** page, a Lake card on Overview, tier checkboxes
   on Runner, and a Tiers column on Runs.
 - `doctor` reports a `lake` check (tier presence, gold readability). A missing lake is a
@@ -42,6 +52,13 @@ All notable changes to this project are documented here. Format loosely follows
 - `PipelineSummary.FailedMetrics` and run status `PARTIAL`/`FAILED` so a run with
   failed metrics is no longer recorded as `SUCCESS`; CLI exits 1 and the Web job
   fails.
+
+### Fixed
+- Analytics SQL now runs on DuckDB as well as SQLite: freshness computes the lag in C#
+  (DuckDB rejects `strftime` on VARCHAR dates), and correlation no longer binds the same
+  period placeholder twice.
+- `lake import-from-sqlite` selects real columns and remaps SQLite surrogate ids through
+  natural keys (metric/entity/source); it no longer copies ids or fabricates derived rows.
 
 ### Changed
 - A run that extracts no valid metrics is now recorded as `FAILED` (not `SUCCESS`) with
