@@ -211,8 +211,8 @@ dotnet run --project src/EconData.Cli -- chat --question "What is the latest US 
 Common options: `--config PATH`, `--db-path PATH`, `--entities PATH`,
 `--vec PATH`, `--output-dir DIR`. `extract` also accepts
 `--metrics all|gdp_usd,population`, `--db`, and the lake tier flags
-`--bronze --silver --gold`; `vectorize` accepts `--reembed`;
-`chat` accepts `--k N --show-sources --system FILE`.
+`--bronze --silver --gold`; `vectorize` accepts `--reembed` and
+`--recent-points N`; `chat` accepts `--k N --show-sources --system FILE`.
 
 ### Medallion lake
 
@@ -252,7 +252,32 @@ analytics* read from:
 
 SQLite is still required: the `sqlite-vec` index lives there, so `vectorize` and
 `chat` always use it regardless of serving mode. `ECONDATA_LAKE_DIR` relocates the
-lake.
+lake. To migrate an existing SQLite deployment without re-extraction, run
+`lake import-from-sqlite`.
+
+### Operations
+
+```bash
+# Read-only readiness check; exits non-zero only on blockers
+dotnet run --project src/EconData.Cli -- doctor
+
+# Verify database integrity and the schema/view descriptor
+dotnet run --project src/EconData.Cli -- check-db
+
+# Consistent snapshot without stopping the app (no external sqlite3 needed)
+dotnet run --project src/EconData.Cli -- backup --to backups/econdata-$(date +%F).db
+```
+
+`doctor` checks the runtime, configuration, database presence, SQLite integrity, the
+schema/view descriptor, `sqlite-vec`, Ollama/LLM reachability, and lake health.
+
+### Run status
+
+A run is `SUCCESS` only when every requested *known* metric succeeds, `PARTIAL` when at
+least one succeeded and one failed (including derived-aggregation failures), and
+`FAILED` when none did. A metric absent from the catalog is skipped without changing
+the status. `dbe_pipeline_runs.metrics_extracted` counts successful metrics, so a run
+that extracts nothing is recorded as `FAILED` — never `SUCCESS`.
 
 ## Web UI
 
@@ -263,8 +288,8 @@ dotnet run --project src/EconData.Web
 
 | Page | What it does |
 | :--- | :--- |
-| `/` | Row counts and the latest pipeline run |
-| `/runner` | Check / Init / Extract / Vectorize / Run All, live progress, log tail, cancel |
+| `/` | Row counts, lake health, and the latest pipeline run |
+| `/runner` | Check / Init / Extract / Vectorize / Run All with tier checkboxes, live progress, log tail, cancel |
 | `/data` | Series explorer and latest snapshot |
 | `/metrics` | Per-metric coverage and year ranges |
 | `/entities` | Searchable entity registry |

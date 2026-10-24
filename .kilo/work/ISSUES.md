@@ -4,6 +4,13 @@
 
 Plan of record: `.kilo/plans/1792630353409-sprint3-open-items-serving-store-and-runbook.md`.
 
+- **Serving default differs from the approved decision.** Sprint 3 approved
+  `ECONDATA_SERVING_STORE=gold` (SQLite only for vectors). The shipped default is
+  `auto`, chosen so a fresh install and the Web test fixture work before a gold file
+  exists. Decide: document `auto` as the dev default and `gold` for production, or
+  flip the default together with a gold-aware Web fixture and a first-run path
+  (`lake init` + `extract --gold`). The README currently documents the shipped
+  behaviour (`auto`).
 - **Backfill ergonomics and runbook missing.** Serving-mode wiring is done, but
   `lake import-from-sqlite` still has no `--dry-run` and prints no source-vs-gold
   parity counts, and `docs/DEPLOY.md` has no migration sequence
