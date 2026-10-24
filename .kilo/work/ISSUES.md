@@ -4,21 +4,18 @@
 
 Plan of record: `.kilo/plans/1792630353409-sprint3-open-items-serving-store-and-runbook.md`.
 
-- **Implement `ECONDATA_SERVING_STORE` for structured analytics only.**
-  `AppConfig.ServingStore` exists but nothing reads it; `AnalyticsService` always uses
-  gold-if-present-else-SQLite. Add `auto | gold | sqlite`, with strict `gold` failing fast
-  when the gold file is missing. **`Vectorizer` and chat are intentionally out of scope:**
-  the `sqlite-vec` index — and future ingested document chunks — live in SQLite, so chat
-  must keep using SQLite under every serving mode.
-- **Web chat builds documents without gold.** `Web/Program.cs:85-91` constructs the
-  `IDocumentSearcher` `Vectorizer` with no `GoldTier`, so a lake-only deployment builds
-  coverage documents from empty SQLite tables. CLI `vectorize`/`chat`
-  (`Cli/Program.cs:357, 376`) have the same gap. Pass a gold tier for *document building
-  only*; vectors stay in SQLite.
-- **Backfill ergonomics and runbook missing.** `lake import-from-sqlite` has no
-  `--dry-run` and prints no source-vs-gold parity counts; `docs/DEPLOY.md` has no migration
-  sequence (backup → `lake init` → dry-run → import → verify → switch serving mode →
+- **Backfill ergonomics and runbook missing.** Serving-mode wiring is done, but
+  `lake import-from-sqlite` still has no `--dry-run` and prints no source-vs-gold
+  parity counts, and `docs/DEPLOY.md` has no migration sequence
+  (backup → `lake init` → dry-run → import → verify → switch serving mode →
   rollback to `sqlite`).
+- **Intermittent Core test failure (unidentified).** One full run reported
+  `Failed: 1, Passed: 216`; the same suite passed in isolation and in three
+  consecutive full runs, and the failing test name was lost when output was
+  overwritten. Suspected shared temp-SQLite/pool interaction
+  (`SqliteConnection.ClearAllPools` running during another test). Needs reproduction
+  with `--logger "console;verbosity=detailed"` and a fix: a flaky suite is a defect,
+  not noise.
 
 ## Follow-ups (non-blocking)
 
@@ -33,6 +30,15 @@ Plan of record: `.kilo/plans/1792630353409-sprint3-open-items-serving-store-and-
 
 ## Resolved
 
+- **`ECONDATA_SERVING_STORE` implemented for structured analytics only.** `ServingStore`
+  (`auto | gold | sqlite`) is parsed by `AppConfig`, consumed by `AnalyticsService`, and
+  wired through the Web host; strict `gold` fails fast with an actionable message.
+  Covered by `ServingStoreTests` and `ServingModeTests`. Commit `4e6d7cc`.
+- **Web/CLI Vectorizer built documents without gold.** The Web `IDocumentSearcher` and the
+  CLI `vectorize`/`chat` paths now receive a `GoldTier` for document building; vectors
+  remain in SQLite. Commit `4e6d7cc`.
+- **Formatting drift in `AnalyticsService`.** 35 whitespace errors (class body indented
+  four extra spaces) were found by re-running the gate; fixed whitespace-only in `6aa2976`.
 - **Analytics SQL failed on DuckDB** (found by adding gold-backed tests):
   `GetFreshness` used `strftime` on VARCHAR dates with SQLite argument order, and
   `GetCorrelation` bound `@period` twice while the DuckDB adapter rewrites named

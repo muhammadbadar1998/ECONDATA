@@ -33,41 +33,115 @@ No database server, Docker, or credentials are required — everything lives und
 
 This project was developed AI-first: planning, implementation, verification, and
 issue tracking were driven by an orchestrated set of AI agents rather than one long
-chat session. The workflow was deliberately cost-aware, instruction-driven, and
-**verification-heavy**.
+chat session. The defining trait is not that models wrote the code — it is that the
+work was **written down, scoped, and verified** at every step.
 
-- **Tiered model orchestration.** Model capability was matched to task complexity.
-  Mechanical work (scaffolding, docs, renames, config entries) ran on fast, cheap
-  models; standard implementation stayed on the default tier; the hardest reasoning
-  — schema design, SQLite/`sqlite-vec`/DuckDB integration, Blazor concurrency, and
-  failures without a reproduction — was escalated deliberately and briefly, with the
-  resulting design handed back down for execution.
-- **Persistent, committed working documents.** `.kilo/plans/` holds the phase plans,
-  and `.kilo/work/{PLAN,PROGRESS,ISSUES}.md` track the active plan, execution state,
-  and open issues. They are part of the repo, so any session — or any agent — can
-  resume from the documents instead of re-reading the codebase.
-- **Instruction-driven six-phase loop** for every change:
-  1. **Plan** — requirements, architecture, test strategy, target files, Definition
-     of Done, and UAT; pause for explicit approval.
-  2. **Test first** — write tests and executable UAT assertions before code.
-  3. **Implement** — the minimum production code needed to make the tests pass.
-  4. **Shrink** — re-read the diff and remove complexity and footprint.
-  5. **Verify** — build, test, format, and UAT for every touched project; fix root
-     causes rather than weakening checks.
-  6. **Commit & push** — conventional commit, push, and summarize what changed, UAT
-     results, and the commit SHA.
-- **Verification is adversarial.** Reports are not taken at face value. Claims are
-  re-checked by independent builds and test runs, and new tests are **mutation
-  tested** — for example, the lake-status parity test was proven by breaking the HTTP
-  endpoint and confirming the test fails, and the config guard was proven by removing
-  `/v1` from the LLM base URL. Bugs found this way are fixed with a regression test
-  in the same change.
-- **Engine-parity testing.** A feature is not "done" when it passes on one store.
-  Analytics SQL is exercised against **both SQLite and DuckDB gold**, which is how two
-  real defects were caught: `strftime` on VARCHAR dates and a duplicated bound
-  parameter in the DuckDB adapter.
-- **Prompt caching.** Stable project context (instructions, plan, conventions) was
-  kept first and referenced by path, so long sessions stayed cheap and consistent.
+### The document system
+
+Several small, purpose-built files are kept in the repo instead of one growing
+transcript. Each has a single job and is updated at a specific point in the loop:
+
+| File | Holds | Updated |
+| :--- | :--- | :--- |
+| `AGENTS.md` | Repository facts: layout, commands, invariants, conventions, quality gates | When repo reality changes |
+| `.kilo/WORKFLOW.md` | The process itself: tiers, plan requirements, six phases, Definition of Done | Rarely — it governs every change |
+| `.kilo/plans/<id>-<phase>.md` | One file per approved plan (see below) | Step 0; amended on approved scope changes |
+| `.kilo/work/PLAN.md` | The active plan, in one screen: scope, sequence, open questions | Step 0; archived when the plan ships |
+| `.kilo/work/PROGRESS.md` | Phase, checklist, current step, next action, exact gate results | Every step boundary |
+| `.kilo/work/ISSUES.md` | Open blockers, known bugs, non-blocking follow-ups, resolved items with test citations | When an issue appears or closes |
+| `CHANGELOG.md` | User-facing changes | Before each commit that changes behaviour |
+| `docs/DEV_GUIDE.md`, `docs/DEPLOY.md` | Architecture detail and the operations runbook | With the feature they describe |
+
+Rules that make the system work:
+
+- **Write before acting.** The next step is recorded in `PROGRESS.md` before code is
+  edited, so a session cut at any point is recoverable.
+- **Append, don't rewrite.** Working documents are amended at the bottom; rewriting
+  the top invalidates the agent's cached context.
+- **One active plan per worktree.** Parallel work gets a separate worktree with its
+  own `.kilo/work/` state.
+- **Archive on completion.** A shipped plan is summarised under "Done" and
+  `PROGRESS.md` is reset for the next task.
+- **Resume from the documents, not the repo.** A new session reads `PROGRESS.md`,
+  then `ISSUES.md`, then only the files named by the current step — no re-reading the
+  whole codebase.
+
+### Deliverables defined before any code
+
+Every plan must contain, and cannot start without:
+
+1. **Numbered deliverables**, each with an explicit *"done when"* criterion.
+2. A **target-files table** (`path` → change) so the blast radius is known up front.
+3. A **Definition of Done** checklist (build, tests, format, UAT, docs, push).
+4. **Executable UAT** — commands to run and the UI states to check.
+5. A **tier** and the escalation trigger.
+6. Explicit **out-of-scope** items and **open questions**.
+
+Planning pauses for approval. That single gate is what kept scope from drifting: if
+something was not a deliverable, it did not get built, and anything found mid-flight
+was written into `ISSUES.md` rather than silently absorbed.
+
+### Tiered model orchestration
+
+Capability is matched to task complexity, and escalation happens on evidence — a
+second failed attempt at the same problem — not on vibes:
+
+| Tier | Used for | Cost discipline |
+| :--- | :--- | :--- |
+| **T1 — Mechanical** | Scaffolding, docs, renames, formatting, config entries, fixtures | Default; never escalate for speed |
+| **T2 — Standard** | Features to an approved plan, tests, UI wiring, known-cause fixes | Session default |
+| **T3 — Deep** | Schema design, SQLite/`sqlite-vec`/DuckDB integration, concurrency, failures without a repro | Brief and deliberate; hand the design back to T2 to execute |
+
+T3 is for **decisions, not typing**. Agent routing follows the same split (`code` =
+T2, `debug` = T3, `explore` = T1), and verification is never downgraded because an
+edit was "mechanical".
+
+### The six-phase loop
+
+1. **Plan** — deliverables, architecture, test strategy, target files, DoD, UAT;
+   pause for approval.
+2. **Test first** — write the failing test and confirm it fails for the right reason,
+   recording that in `PROGRESS.md`.
+3. **Implement** — the minimum production code that makes the tests pass.
+4. **Shrink** — re-read the full diff, delete dead code and speculative options, then
+   re-run the tests.
+5. **Verify** — run the smallest relevant build/test/format/UAT checks for every
+   touched project; fix root causes rather than weakening tests or suppressing warnings.
+6. **Commit & push** — conventional commit, changelog entry, then summarise what
+   changed, the UAT results, the tier used, and the commit SHA.
+
+Each workstream lands as its own green commit, so any commit on `main` builds, tests,
+and formats cleanly on its own.
+
+### Verification is adversarial
+
+Reports are not taken at face value — including an agent's own summary. Claims are
+re-checked with independent builds and test runs, and new tests are **mutation
+tested**: the implementation is deliberately broken to prove the test fails.
+
+| What was caught | How it was caught |
+| :--- | :--- |
+| `strftime` on VARCHAR dates and a duplicated bound parameter broke analytics on DuckDB | Engine-parity tests: the same feature exercised on **both SQLite and DuckDB** |
+| `lake import-from-sqlite` read a non-existent column and copied surrogate ids | Writing the missing integration test before trusting the feature |
+| `doctor` skipped the lake check when SQLite was absent | An acceptance test for the lake-only deployment |
+| Pre-render 500s on Lake/Overview | Page-render tests in the Web suite |
+| Parquet and DuckDB API mismatches | A throwaway probe program before any production code |
+| Format drift (35 whitespace errors) | Re-running the gate instead of trusting the prior report |
+| Lake-status "parity" test that never called the API | Mutation: breaking the endpoint and watching the test still pass |
+
+A bug found this way always ships with a regression test in the same change. A flaky
+test is treated as a defect and recorded, not re-run until green.
+
+### Handoff and resumability
+
+Because state lives in committed files, work moves cleanly between models and
+sessions: a planner writes the plan, a code agent executes the next deliverable, a
+debug agent verifies it, and any of them can stop mid-task without losing context.
+The repo — not the conversation — is the source of truth.
+
+The canonical specification of this process lives in
+[`.kilo/WORKFLOW.md`](.kilo/WORKFLOW.md), with the active plan summary in
+[`.kilo/work/PLAN.md`](.kilo/work/PLAN.md).
 
 The initial build — planning, implementation, tests, and documentation — cost
 **under $4** for **207.5M tokens** across **2,401 requests**.
