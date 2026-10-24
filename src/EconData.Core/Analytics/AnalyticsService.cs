@@ -10,47 +10,47 @@ namespace EconData.Core.Analytics;
 /// dashboard's JSON endpoints. Reads the DuckDB gold tier when one is configured and
 /// falls back to the SQLite database, so both the lake-era and vector-era layouts work.
 /// </summary>
-    public sealed class AnalyticsService
+public sealed class AnalyticsService
+{
+    private readonly SqliteConnectionFactory _factory;
+    private readonly GoldTier? _gold;
+    private readonly ServingStore _servingStore;
+
+    public AnalyticsService(SqliteConnectionFactory factory, GoldTier? gold = null, ServingStore servingStore = ServingStore.Auto)
     {
-        private readonly SqliteConnectionFactory _factory;
-        private readonly GoldTier? _gold;
-        private readonly ServingStore _servingStore;
+        ArgumentNullException.ThrowIfNull(factory);
+        _factory = factory;
+        _gold = gold;
+        _servingStore = ServingStores.Parse(servingStore.ToString());
 
-        public AnalyticsService(SqliteConnectionFactory factory, GoldTier? gold = null, ServingStore servingStore = ServingStore.Auto)
+        if (_servingStore == ServingStore.Gold && (_gold is null || !_gold.Exists))
+            throw new InvalidOperationException(
+                $"ECONDATA_SERVING_STORE=gold but no gold database at {_gold?.DatabasePath ?? "(none)"}. " +
+                "Run `lake build-gold` or `lake import-from-sqlite`, or set ECONDATA_SERVING_STORE=auto/sqlite.");
+    }
+
+    /// <summary>True when analytics read the DuckDB gold tier rather than SQLite.</summary>
+    public bool UsesGold => _servingStore == ServingStore.Gold
+        || (_servingStore == ServingStore.Auto && _gold is not null && _gold.Exists);
+
+    /// <summary>The configured serving mode.</summary>
+    public ServingStore ServingStore => _servingStore;
+
+    private AnalyticsConnection Open()
+    {
+        var mode = _servingStore;
+        if (mode == ServingStore.Auto)
+            mode = _gold is not null && _gold.Exists ? ServingStore.Gold : ServingStore.Sqlite;
+
+        if (mode == ServingStore.Gold)
         {
-            ArgumentNullException.ThrowIfNull(factory);
-            _factory = factory;
-            _gold = gold;
-            _servingStore = ServingStores.Parse(servingStore.ToString());
-
-            if (_servingStore == ServingStore.Gold && (_gold is null || !_gold.Exists))
-                throw new InvalidOperationException(
-                    $"ECONDATA_SERVING_STORE=gold but no gold database at {_gold?.DatabasePath ?? "(none)"}. " +
-                    "Run `lake build-gold` or `lake import-from-sqlite`, or set ECONDATA_SERVING_STORE=auto/sqlite.");
+            if (_gold is null || !_gold.Exists)
+                throw new InvalidOperationException($"Gold database not available at {_gold?.DatabasePath ?? "(none)"}.");
+            return AnalyticsConnection.Gold(_gold.OpenReadOnly());
         }
 
-        /// <summary>True when analytics read the DuckDB gold tier rather than SQLite.</summary>
-        public bool UsesGold => _servingStore == ServingStore.Gold
-            || (_servingStore == ServingStore.Auto && _gold is not null && _gold.Exists);
-
-        /// <summary>The configured serving mode.</summary>
-        public ServingStore ServingStore => _servingStore;
-
-        private AnalyticsConnection Open()
-        {
-            var mode = _servingStore;
-            if (mode == ServingStore.Auto)
-                mode = _gold is not null && _gold.Exists ? ServingStore.Gold : ServingStore.Sqlite;
-
-            if (mode == ServingStore.Gold)
-            {
-                if (_gold is null || !_gold.Exists)
-                    throw new InvalidOperationException($"Gold database not available at {_gold?.DatabasePath ?? "(none)"}.");
-                return AnalyticsConnection.Gold(_gold.OpenReadOnly());
-            }
-
-            return AnalyticsConnection.Sqlite(_factory.OpenReadOnly());
-        }
+        return AnalyticsConnection.Sqlite(_factory.OpenReadOnly());
+    }
 
     public OverviewStats GetOverview()
     {
