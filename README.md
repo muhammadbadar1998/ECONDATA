@@ -14,8 +14,9 @@ and DuckDB holds the gold tier. The `sqlite-vec` extension is vendored.
 
 ## Features
 
-- **ETL**: 26 macro indicators across ~275 countries/aggregates, typed dates,
-  unit normalization, and bulk UPSERTs.
+- **ETL**: 26 indicators — 24 historical (World Bank WDI) and 2 forecast (World Bank
+  GEP, OECD). The WDI metrics cover ~265 economies and aggregates. Typed dates, unit
+  normalization, and bulk UPSERTs throughout.
 - **Medallion lake** (optional): append-only **bronze** Parquet, typed **silver**
   partitions, and a **DuckDB gold** serving database with idempotent upserts,
   derived aggregates, and run auditing.
@@ -350,7 +351,7 @@ docs/               Developer guide and deploy notes
 ## Tests
 
 ```bash
-dotnet test EconData.slnx                    # 260 tests
+dotnet test EconData.slnx                    # 260 tests (217 Core + 43 Web)
 dotnet format EconData.slnx --verify-no-changes
 ```
 
