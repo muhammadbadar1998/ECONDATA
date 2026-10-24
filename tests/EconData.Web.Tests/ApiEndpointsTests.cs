@@ -96,4 +96,55 @@ public class ApiEndpointsTests : IClassFixture<WebAppFixture>
         Assert.Equal(1, runs[0].MetricsExtracted);
         Assert.Equal(3, runs[0].ObservationsUpserted);
     }
+
+    [Fact]
+    public async Task GetGrowth_ReturnsYearOverYearGrowth()
+    {
+        var growth = await _client.GetFromJsonAsync<IReadOnlyList<GrowthPoint>>("/api/analytics/growth?metric=gdp_usd&entity=USA&kind=yoy&periods=10");
+
+        Assert.NotNull(growth);
+        Assert.Single(growth!);
+        Assert.Equal("2024-01-01", growth![0].Period);
+        Assert.Equal(300.0, growth[0].Value);
+        // (300 - 200) / 200 * 100 = 50%
+        Assert.Equal(50.0, growth[0].GrowthPct);
+    }
+
+    [Fact]
+    public async Task GetRanking_ReturnsTopMetric()
+    {
+        var ranking = await _client.GetFromJsonAsync<IReadOnlyList<RankingRow>>("/api/analytics/ranking?metric=gdp_usd&period=2024-01-01&direction=desc&limit=5");
+
+        Assert.NotNull(ranking);
+        Assert.Single(ranking!);
+        Assert.Equal("USA", ranking[0].EntityCode);
+        Assert.Equal("United States", ranking[0].EntityName);
+        Assert.Equal(300.0, ranking[0].Value);
+    }
+
+    [Fact]
+    public async Task GetCorrelation_ReturnsCorrelationWithItself()
+    {
+        var corr = await _client.GetFromJsonAsync<IReadOnlyList<CorrelationResult>>("/api/analytics/correlation?metricA=gdp_usd&metricB=gdp_usd&period=2024-01-01");
+
+        Assert.NotNull(corr);
+        Assert.Single(corr!);
+        Assert.Equal("gdp_usd", corr![0].MetricCode1);
+        Assert.Equal("gdp_usd", corr[0].MetricCode2);
+        Assert.Equal("2024-01-01", corr[0].Period);
+        Assert.Equal(1, corr[0].N);
+        Assert.Equal(1.0, corr[0].Correlation);
+    }
+
+    [Fact]
+    public async Task GetFreshness_ReturnsFreshnessInfo()
+    {
+        var freshness = await _client.GetFromJsonAsync<IReadOnlyList<FreshnessRecord>>("/api/analytics/freshness");
+
+        Assert.NotNull(freshness);
+        var gdp = freshness.FirstOrDefault(f => f.MetricCode == "gdp_usd");
+        Assert.NotNull(gdp);
+        Assert.Equal("2024-01-01", gdp!.LatestPeriod);
+        Assert.Equal(3, gdp!.RowCount);
+    }
 }
