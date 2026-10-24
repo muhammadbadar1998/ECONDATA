@@ -298,7 +298,7 @@ internal static class Program
                 }
 
             default:
-                Console.WriteLine("Usage: lake [status|build-gold|build-gold --rebuild|import-from-sqlite]");
+                Console.WriteLine("Usage: lake [init|status|build-gold|rebuild|import-from-sqlite]");
                 return 1;
         }
     }

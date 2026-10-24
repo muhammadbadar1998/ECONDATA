@@ -65,6 +65,10 @@ Every plan MUST include, before it is considered approved:
 - **Deliverables** — numbered list, each with a "done when" criterion.
 - **Target files** — table of `path` → change.
 - **Definition of Done** — checklist of verifiable outcomes (build/test/format/UAT).
+- **UAT** — executable commands and the UI states to check.
+- **Tier** — T1/T2/T3 plus the escalation trigger.
+- **Out of scope** — what is deliberately not being built.
+- **Open questions** — decisions needed, with a recommended default each.
 
 Plans missing any of these are incomplete and must not be executed.
 

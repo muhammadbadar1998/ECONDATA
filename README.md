@@ -8,8 +8,8 @@ for retrieval-augmented (RAG) questions, analytics endpoints, a CLI, and a
 localhost Blazor dashboard with a pipeline runner.
 
 No database server, Docker, or credentials are required — everything lives under
-`output/` (SQLite for the vector store, DuckDB for gold) with a vendored
-`sqlite-vec` extension.
+`output/`: SQLite holds the vector index and remains the default structured store,
+and DuckDB holds the gold tier. The `sqlite-vec` extension is vendored.
 
 ## Features
 
@@ -110,8 +110,19 @@ edit was "mechanical".
 6. **Commit & push** — conventional commit, changelog entry, then summarise what
    changed, the UAT results, the tier used, and the commit SHA.
 
-Each workstream lands as its own green commit, so any commit on `main` builds, tests,
-and formats cleanly on its own.
+Each workstream lands in reviewable commits that are independently green: any commit
+on `main` builds, tests, and formats cleanly on its own.
+
+### Context discipline
+
+Long multi-agent sessions only stay coherent if the context is managed deliberately:
+
+- Stable context (instructions, plan, conventions) goes first; files and symbols are
+  referenced by path instead of re-pasted, and only what changed is re-read.
+- Working documents are **appended** to rather than rewritten, so the cached prefix
+  stays valid and cheap.
+- A fresh session is started when the phase or tier changes — the documents, not the
+  transcript, carry the state forward.
 
 ### Verification is adversarial
 
@@ -193,10 +204,9 @@ dotnet run --project src/EconData.Cli -- extract --metrics all --bronze --silver
 
 # Inspect and rebuild the serving tier without the network
 dotnet run --project src/EconData.Cli -- lake status
-dotnet run --project src/EconData.Cli -- lake build-gold --rebuild
+dotnet run --project src/EconData.Cli -- lake rebuild
 
 # Backfill gold from an existing SQLite database (no re-extraction)
-dotnet run --project src/EconData.Cli -- lake import-from-sqlite --dry-run
 dotnet run --project src/EconData.Cli -- lake import-from-sqlite
 ```
 
