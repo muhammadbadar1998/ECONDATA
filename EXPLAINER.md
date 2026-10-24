@@ -51,7 +51,7 @@ output/                        # econdata.db + pipeline/chat logs (gitignored)
 | `db.py` / `db_loader.py` | `Data/SqliteConnectionFactory`, `Data/SchemaInitializer`, `Data/DatabaseLoader` |
 | `embeddings.py` / `llm.py` | `Ai/OllamaEmbedder`, `Ai/LLMClient` |
 | `vectorizer.py` | `Catalog/Vectorizer`, `Catalog/VectorStore` |
-| `rag.py` / `chat.py` | `Rag/RagAnswerer`, `Cli/Chat/ChatRepl`, `Cli/Chat/ChatCommand` |
+| `rag.py` / `chat.py` | `Chat/ChatOrchestrator`, `Chat/ChatTools`, `Chat/ChatToolValidator`, `Rag/RagAnswerer`, `Cli/Chat/ChatRepl`, `Cli/Chat/ChatCommand` |
 | `main.py` | `Cli/Program`, `Cli/PipelineRunner` |
 | `logging_config.py` | `Logging/LoggingSetup` (Serilog) |
 
@@ -158,12 +158,22 @@ from period/series strings.
 - Vectors are stored in a sqlite-vec `vec0` table and searched by cosine distance
   (`similarity = 1 - distance`).
 
-## Chatbot (vector RAG)
+## Chat (tool-first, with RAG)
 
-Read-only: it embeds the question, retrieves top-k documents, and asks an
-OpenAI-compatible chat model to answer **from those documents only**, citing the
-`doc_key`s used. No text-to-SQL, no writes. Empty retrieval short-circuits with a
-canned "no data" answer and never calls the LLM.
+Read-only. `Chat/ChatOrchestrator` classifies each question as `ChatIntent.Objective`
+or `ChatIntent.Subjective` and takes one path:
+
+- **Objective** — values, latest/earliest, comparisons, rankings, catalog lists — uses
+  a tool-calling loop over `Chat/ChatTools`: six fixed, parameterized queries
+  (`get_series`, `get_latest`, `compare_entities`, `rank_entities`, `list_metrics`,
+  `list_entities`). `ChatToolValidator` checks names and arguments, the model may call
+  up to three tools, and each result returns as text. No raw SQL and no writes.
+- **Subjective** — definitions, explanations — uses `Rag/RagAnswerer`: embed the
+  question, retrieve top-k documents, answer **from those documents only**, and cite
+  the `doc_key`s used. Empty retrieval short-circuits with a canned "no data" answer
+  and never calls the LLM.
+
+If intent classification fails, the question falls back to the RAG path.
 
 ---
 

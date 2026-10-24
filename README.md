@@ -3,9 +3,10 @@
 A **C# / .NET 10** pipeline for macroeconomic data: it pulls indicators from
 [DBnomics](https://db.nomics.world/), resolves entities and units, and loads them
 idempotently into a **local SQLite** database or a **DuckDB gold tier** via an
-optional bronze → silver → gold lake. On top of that it provides a vector catalog
-for retrieval-augmented (RAG) questions, analytics endpoints, a CLI, and a
-localhost Blazor dashboard with a pipeline runner.
+optional bronze → silver → gold lake. On top of that it provides a **tool-calling
+chat layer** for exact data questions, a vector-backed RAG path for explanatory
+questions, analytics endpoints, a CLI, and a localhost Blazor dashboard with a
+pipeline runner.
 
 No database server, Docker, or credentials are required — everything lives under
 `output/`: SQLite holds the vector index and remains the default structured store,
@@ -18,16 +19,38 @@ and DuckDB holds the gold tier. The `sqlite-vec` extension is vendored.
 - **Medallion lake** (optional): append-only **bronze** Parquet, typed **silver**
   partitions, and a **DuckDB gold** serving database with idempotent upserts,
   derived aggregates, and run auditing.
-- **Vector catalog**: embeds metric/entity/series summaries into `sqlite-vec`
-  (768-dim cosine) and answers questions from those documents.
-- **Chat**: tool-first answers for objective questions (fixed parameterized
-  queries over gold/SQLite) with a retrieval path for explanatory questions.
+- **Chat (tool-first)**: an intent classifier routes objective questions — values,
+  latest/earliest, comparisons, rankings, catalog lists — to six fixed, parameterized
+  tool calls over gold/SQLite. Explanatory questions use a vector RAG path instead.
+  Answers cite the tool results or the document keys used.
+- **Vector catalog (RAG)**: embeds metric/entity/series summaries into `sqlite-vec`
+  (768-dim cosine) for explanatory questions.
 - **Analytics API**: growth (YoY/CAGR), rankings, correlations, and data freshness.
 - **CLI**: `init-db`, `check-db`, `backup`, `doctor`, `extract`, `lake`, `vectorize`, `chat`.
 - **Web UI**: Overview, Runner with live progress/logs/cancel, Data, Metrics,
   Entities, Lake, Runs, and a drag/resize dashboard builder (ECharts + GridStack).
 - **Hermetic tests**: temporary SQLite and DuckDB databases, including real
   `sqlite-vec` kNN and gold-backed analytics tests.
+
+### How chat retrieves data
+
+`ChatOrchestrator` classifies the question first, then takes one of two paths:
+
+| Question | Path | Source of truth |
+| :--- | :--- | :--- |
+| Values, latest/earliest, comparisons, rankings, catalog lists | **Tool calls** | Gold or SQLite analytics |
+| Definitions, explanations, "why"/"how" questions | **RAG** | Embedded metric/entity/series documents |
+
+- **Tool calls are the primary retrieval path for data.** There are six fixed tools —
+  `get_series`, `get_latest`, `compare_entities`, `rank_entities`, `list_metrics`,
+  `list_entities` — each a parameterized query with validated arguments. The model may
+  call up to three in sequence. There is no raw SQL and no text-to-SQL; tool failures
+  are returned to the model as text rather than surfaced as a guessed answer.
+- **RAG is the secondary path**, used when the question needs prose rather than a
+  lookup. It embeds the question, retrieves top-k documents from `sqlite-vec`, and
+  answers from those documents, citing the `doc_key`s used.
+- If intent classification fails, the question falls back to RAG rather than guessing
+  a tool.
 
 ## How this was built (AI-first)
 

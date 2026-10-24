@@ -2,12 +2,13 @@
 
 ## Project posture
 
-`ECONDATA` is a **C# / .NET 10** ETL + vector-RAG service. The pipeline extracts
-normalized macro-economic series from the DBnomics REST API, transforms them
-(entity resolution, typed dates, unit normalization, dedupe), and performs
-idempotent bulk UPSERTs into a **local SQLite** database (`dbe_*` schema). An
-optional semantic layer embeds metric/entity/series summaries and answers
-questions **from those documents only** (read-only).
+`ECONDATA` is a **C# / .NET 10** ETL, analytics, and chat service. The pipeline
+extracts normalized macro-economic series from the DBnomics REST API, transforms
+them (entity resolution, typed dates, unit normalization, dedupe), and performs
+idempotent bulk UPSERTs into a **local SQLite** database (`dbe_*` schema) or a
+DuckDB gold tier. Chat is **tool-first**: objective questions run fixed,
+parameterized queries; an optional semantic layer embeds metric/entity/series
+summaries for explanatory questions (read-only).
 
 The former Python implementation and the Supabase/PostgreSQL backend have been
 removed. The SQLite database is a single file; there are no server credentials.
@@ -221,16 +222,58 @@ Serilog writes to `output/logs/pipeline_<date>.log` and a size-bounded rolling
 `output/pipeline.log` (5 MB × 5); chat mirrors this to `chat_<date>.log` /
 `chat.log` with the console on **stderr** (so piped answers stay on stdout).
 
-## Chatbot (vector RAG)
+## Chat (tool-first, with RAG)
 
-A read-only CLI assistant: it embeds the question, retrieves the top-k documents
-from `dbe_embeddings`, and asks an OpenAI-compatible chat model to answer **from
-those documents only**, citing the `doc_key`s used. No text-to-SQL, no writes.
+A read-only assistant. `ChatOrchestrator` classifies each question as **objective** or
+**subjective** and takes one of two paths. There is no raw SQL and no writes.
+
+### How a question is routed
+
+| Question | Path | Source of truth |
+| :--- | :--- | :--- |
+| Values, latest/earliest, comparisons, rankings, catalog lists | Tool calls | Gold or SQLite analytics |
+| Definitions, explanations, "why"/"how" | RAG | `dbe_embeddings` documents |
+
+Intent classification is an LLM call that must return `{"intent":"objective"}` or
+`{"intent":"subjective"}`. If it fails, the question falls back to RAG rather than
+guessing a tool.
+
+### Objective questions — tool calls (primary)
+
+`ChatTools` defines six fixed tools, each backed by a parameterized query over
+`AnalyticsService`/the catalog (never generated SQL):
+
+| Tool | Answers |
+| :--- | :--- |
+| `get_series` | Full time series for one entity and metric |
+| `get_latest` | Most recent value(s), optionally filtered |
+| `compare_entities` | One metric across several entities |
+| `rank_entities` | Highest/lowest entities for a metric |
+| `list_metrics` | Catalog metric codes and names |
+| `list_entities` | Seed entity codes and names |
+
+`ChatToolValidator` checks the proposed name and arguments before dispatch. The model
+may call up to three tools in sequence; each result is returned to it as text, and a
+tool failure is reported to the model rather than replaced by a guessed answer.
+
+### Explanatory questions — RAG
+
+The question is embedded, the top-k documents are retrieved from `dbe_embeddings`
+(`sqlite-vec`, cosine), and the model answers **from those documents only**, citing
+the `doc_key`s used. Each `entity_metric` document carries coverage (count, year
+range), the latest value, min/max with years, and the N most recent points.
+
+RAG alone cannot answer arbitrary historical years outside those recent points or
+cross-entity aggregates — those are objective questions and go through tools, where
+`get_series` returns the full series.
 
 ### Prerequisites
-1. The database is populated and vectorized:
+1. A populated structured store is required for tool calls:
    ```bash
    dotnet run --project src/EconData.Cli -- extract --metrics all --db
+   ```
+   RAG additionally needs the vector catalog:
+   ```bash
    dotnet run --project src/EconData.Cli -- vectorize
    ```
 2. A **chat-capable** model is available on the LLM endpoint. For local Ollama,
@@ -247,15 +290,6 @@ REPL commands: `help`, `sources` (re-print the last answer's sources), `reset`
 (clear the in-memory transcript), `exit`/`quit` (or Ctrl-D). History is capped at
 the last 10 turns and is never persisted.
 
-### What the assistant can and cannot answer
-Retrieval is the only source of truth, so each `entity_metric` document carries
-coverage (count, year range), the **latest** value, the **min**/**max** with their
-years, and the **N most recent** `year=value` points. That answers "latest /
-highest / lowest / recent trend" questions. It does **not** answer arbitrary
-historical years outside those recent points, nor cross-entity aggregates,
-rankings, or comparisons — the system prompt instructs the model to say so rather
-than guess.
-
 ### Troubleshooting
 | Symptom | Fix |
 | :--- | :--- |
@@ -263,7 +297,7 @@ than guess.
 | `[error] ... rejected the credentials (HTTP 401)` | Set `LLM_API_KEY`, or clear it for a local server. |
 | `[error] ... no /chat/completions route (HTTP 404)` | `LLM_BASE_URL` must point at the OpenAI-compatible root (usually `.../v1`); a missing Ollama model also returns 404. |
 | `no choices ... Is 'x' a chat-capable model?` | `ollama pull <model>` or set `LLM_MODEL` to a chat model. |
-| "I don't have any catalog data that covers that" | Nothing relevant was retrieved; the LLM was not called. Run `vectorize` if the table is empty. |
+| "I don't have any catalog data that covers that" (RAG path) | Nothing relevant was retrieved; the LLM was not called. Run `vectorize` if the table is empty. |
 
 ## Vector catalog design
 
