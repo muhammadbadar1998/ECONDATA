@@ -32,17 +32,14 @@ Rules:
 
 ### Agent routing
 
-Model routing for subagents is configured in `.kilo/agent/*.md` frontmatter (`model:`), not
-guessed in prompts:
+Subagent models are chosen per call: pass `model` (and `variant`) on the `Task` tool call, or
+change the session model. There is no per-agent config file — do not rely on one.
 
 | Agent | Suggested tier | Use for |
 |---|---|---|
 | `code` (default) | T2 | Normal implementation work. |
 | `debug` | T3 | Failing tests, pipeline/idempotency bugs, Blazor job lifecycle issues. |
 | `explore` | T1 | Read-only searches before planning. |
-
-When a task needs a different model than the agent default, pass `model` (and `variant`) on
-the `Task` tool call rather than re-tiering the whole session.
 
 ## Prompt Caching
 
@@ -67,6 +64,8 @@ Every plan MUST include, before it is considered approved:
 - **Definition of Done** — checklist of verifiable outcomes (build/test/format/UAT).
 - **UAT** — executable commands and the UI states to check.
 - **Tier** — T1/T2/T3 plus the escalation trigger.
+- **Verification ledger** — table of `Deliverable | Command | Expected | Observed`. Rows may
+  start as `TODO`; every row must hold observed output before the plan is complete.
 - **Out of scope** — what is deliberately not being built.
 - **Open questions** — decisions needed, with a recommended default each.
 
@@ -139,10 +138,14 @@ inapplicable (e.g. no UAT surface for a pure refactor), say so in the plan.
 - Run the smallest relevant checks from the `AGENTS.md` quality table for every touched
   project (build, targeted test filter, `dotnet format --verify-no-changes`, `check-db` for
   schema/data-path changes).
+- Apply the `AGENTS.md` **Verification Protocol** tiers: Tier 1 mutation-proof for new tests
+  that assert an absence (dry-run, no-op), Tier 2 end-to-end for any changed CLI/API/file
+  behavior, Tier 3 for any documentation claim.
 - Fix the **root cause** of every failure. Do not weaken tests, suppress warnings, skip
   checks, or add exclusions to get green.
-- Iterate until everything is green; record the exact commands and results in
-  `PROGRESS.md`. If a check cannot run here (no SDK, no Ollama), say so explicitly.
+- Iterate until everything is green; record the exact commands and results in the plan's
+  verification ledger and in `PROGRESS.md`. If a check cannot run here (no SDK, no Ollama),
+  say so explicitly and mark it un-runnable.
 
 ### 5. Commit & push
 
@@ -171,3 +174,10 @@ A change is done when: the plan is approved and implemented, tests and UAT pass,
 gates for touched projects are green (or the un-runnable ones are named), `PROGRESS.md` and
 `ISSUES.md` are current, and the user has the summary — plus the SHA when a commit was
 requested.
+
+Two guards, added after a close-out claimed 12/12 while only one deliverable existed:
+
+- **No item is complete until its verification-ledger cell holds observed output.** If the
+  command could not run, name it and leave the cell `TODO` / `not run`.
+- **Never report a file, test, or behavior as existing without a command that shows it.**
+  A green suite says nothing about work that was skipped.

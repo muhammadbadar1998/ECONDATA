@@ -100,21 +100,37 @@ The lake stages data through `output/lake/` (set `ECONDATA_LAKE_DIR` to relocate
 | Silver | `silver/<metric>.parquet` | Parquet | Whole-partition overwrite; typed, deduped, unit-normalized |
 | Gold | `gold/econdata.duckdb` | DuckDB | `dbe_*` tables + views; idempotent upserts from silver |
 
-Bronze → Silver → Gold is optional and additive — SQLite (`--db`) remains the
-default serving store for analytics and vectors.
+Bronze → Silver → Gold is optional and additive — the **default serving store is `auto`**
+( gold when a gold database exists, otherwise SQLite ). See the serving mode decision
+in `README.md` and `docs/DEV_GUIDE.md`.
 
 ```bash
-# Build all three tiers in one pass
-dotnet run --project src/EconData.Cli -- extract --metrics all --bronze --silver --gold
+# Step 6 — Import from existing SQLite (one-way backfill into gold)
+dotnet run --project src/EconData.Cli -- import-from-sqlite
 
-# Inspect lake health (counts, files, size, newest run)
-dotnet run --project src/EconData.Cli -- lake status
+# After import, optionally materialise silver partitions
+dotnet run --project src/EconData.Cli -- import-from-sqlite --write-silver
 
-# Rebuild gold from silver without touching the network
-dotnet run --project src/EconData.Cli -- lake build-gold
+# Verify parity and switch serving mode
+ECONDATA_SERVING_STORE=gold dotnet run --project src/EconData.Cli -- doctor
+# Exits non-zero with actionable message if no gold exists.
 
-# Doctor reports lake health as a warning (not a blocker) when absent
-dotnet run --project src/EconData.Cli -- doctor
+# Full migration runbook (see below)
+```
+
+```bash
+# Migration runbook: backup → init → import → verify → switch → rollback
+1. Backup: cp output/econdata.db output/econdata.db.bak
+2. Init:   dotnet run --project src/EconData.Cli -- init-db
+3. Import: dotnet run --project src/EconData.Cli -- import-from-sqlite --dry-run
+   (prints source/gold counts, exits 0, nothing written)
+4. Apply:  dotnet run --project src/EconData.Cli -- import-from-sqlite --write-silver
+5. Verify: dotnet run --project src/EconData.Cli -- lake status
+   (compare source vs gold counts; exit 1 on mismatch)
+6. Switch: set ECONDATA_SERVING_STORE=gold and run the app;
+   strict gold fails fast with an actionable message
+7. Rollback: cp output/econdata.db.bak output/econdata.db,
+   unset ECONDATA_SERVING_STORE, restart the app.
 ```
 
 The Web UI mirrors this data: `/lake` shows tier state, `/api/lake/status` returns

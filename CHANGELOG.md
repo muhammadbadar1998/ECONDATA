@@ -10,12 +10,13 @@ All notable changes to this project are documented here. Format loosely follows
   partition per metric, overwritten per run) and gold (DuckDB `dbe_*` tables + views)
   under `output/lake/`. `extract` gains `--bronze`, `--silver`, `--gold`; `--db` still
   means "load to SQLite" and a run with no tier flags never touches the lake.
-- `lake status` and `lake build-gold` CLI commands; `lake build-gold` rebuilds the
-  DuckDB gold tier from silver Parquet with no network access. `lake build-gold --rebuild`
-  builds into a temporary file, validates, then swaps atomically.
+- `lake status`, `lake build-gold` and `lake rebuild` CLI commands; `lake build-gold`
+  rebuilds the DuckDB gold tier from silver Parquet with no network access, and `lake
+  rebuild` builds into a temporary file, validates, then swaps atomically.
 - `lake init` (idempotent gold schema bootstrap) and `lake import-from-sqlite`
   (one-way backfill from an existing SQLite database using natural keys; `--dry-run`
-  prints source counts and writes nothing).
+  prints source counts and writes nothing; `--write-silver` also materialises silver
+  partitions so `lake build-gold` can rebuild from them).
 - `ECONDATA_SERVING_STORE` (`auto | gold | sqlite`) controls where structured analytics
   read from. `gold` fails fast when the gold database is missing; `sqlite` forces SQLite.
   Chat and the vector index always use SQLite.

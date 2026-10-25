@@ -61,6 +61,49 @@ Before saying an implementation is ready, run the smallest relevant checks for e
 
 If a check cannot run (for example no .NET SDK or no Ollama in the environment), state exactly which check was not run — never claim green without running it.
 
+## Verification Protocol
+
+Evidence is a command you ran and the output it produced — not "the tests pass", not "the
+plan says so". Apply only the tier that matches the change; the tiers exist to stop false
+claims, not to add ritual.
+
+| Tier | Applies to | Required |
+|---|---|---|
+| 0 | Every change | `dotnet build EconData.slnx` (0 warnings), the targeted test filter, `dotnet format EconData.slnx --verify-no-changes`, `git status --short` |
+| 1 | Any new or changed test | Prove it can fail: break the production guard, watch it fail, restore, watch it pass. **Required** for tests asserting an absence (dry-run, no-op, "does not throw") |
+| 2 | Observable behavior: CLI command/flag, API endpoint, lake/file output, exit code | Run it end-to-end in a scratch dir; check the exit code, the user-visible line, and the side-effect state |
+| 3 | Documentation claims | Every documented command has been run once or is covered by a test; do not document behavior before its Tier 2 check passes |
+| 4 | Before declaring an item or plan done | The ledger cell holds observed output; no `TODO` remains; the tree is clean; un-runnable checks are named, never "green" |
+
+Mutation check (proves a test is load-bearing; restore afterwards and confirm `git diff` is empty):
+
+```bash
+cp src/<file>.cs /tmp/kilo/<file>.cs.bak
+# reintroduce the exact bug the test claims to catch
+dotnet test EconData.slnx --filter "FullyQualifiedName~<TestClass>"   # must FAIL
+cp /tmp/kilo/<file>.cs.bak src/<file>.cs
+dotnet test EconData.slnx --filter "FullyQualifiedName~<TestClass>"   # must PASS
+```
+
+Dry-run / no-op check (proves non-mutation; also test the absent-file case):
+
+```bash
+export ECONDATA_LAKE_DIR=/tmp/verify/lake
+export ECONDATA_SQLITE_PATH=/tmp/verify/econdata.db
+dotnet run --project src/EconData.Cli -- lake init
+before=$(dotnet run --project src/EconData.Cli -- lake status | grep dbe_observations)
+dotnet run --project src/EconData.Cli -- <command> --dry-run ; echo "exit=$?"
+after=$(dotnet run --project src/EconData.Cli -- lake status | grep dbe_observations)
+test "$before" = "$after"
+```
+
+Claiming rules:
+
+- Lead with the command and its output, per deliverable. One observed line beats a paragraph of intent.
+- Never convert "not run" into "passed"; write `not run: <reason>`.
+- Do not mark a todo complete unless its ledger cell already contains output.
+- Deferred work is stated as **deferred**, never also "completed".
+
 ## Conventions
 
 ### Data pipeline invariants
