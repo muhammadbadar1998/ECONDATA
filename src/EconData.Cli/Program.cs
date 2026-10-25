@@ -286,19 +286,24 @@ internal static class Program
 
             case "import-from-sqlite":
                 {
-                    var catalog = MetricsCatalog.Load(CliPaths.Resolve(root, config.MetricsConfigPath));
-                    var seed = EntitySeed.Load(CliPaths.Resolve(root, config.EntitiesConfigPath));
                     var factory = new SqliteConnectionFactory(CliPaths.Resolve(root, config.SqlitePath));
-                    gold.EnsureSchema();
-                    gold.SeedEntities(seed.Entities, seed.Aliases);
-                    gold.SeedMemberships(seed.Memberships);
-                    gold.ImportFromSqlite(factory);
-                    Console.WriteLine($"Gold imported from SQLite at {factory.DatabasePath}.");
-                    return 0;
+                    var writeSilver = options.Has("write-silver");
+                    var silver = writeSilver ? new SilverTier(lake, logger) : null;
+
+                    var (exit, _) = await LakeImportCommand.ExecuteAsync(
+                        options.Has("dry-run"),
+                        writeSilver,
+                        gold,
+                        factory,
+                        silver,
+                        Console.Out,
+                        Console.Error).ConfigureAwait(false);
+
+                    return exit;
                 }
 
             default:
-                Console.WriteLine("Usage: lake [init|status|build-gold|rebuild|import-from-sqlite]");
+                Console.WriteLine($"Usage: lake [{LakeCommands.Usage}]");
                 return 1;
         }
     }
