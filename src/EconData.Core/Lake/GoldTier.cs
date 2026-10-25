@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using DuckDB.NET.Data;
+using EconData.Core.Analytics;
 using EconData.Core.Configuration;
 using EconData.Core.Data;
 using EconData.Core.Entities;
@@ -454,6 +455,27 @@ public sealed class GoldTier
         return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
     }
 
+    private long CountMetrics(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM dbe_metrics";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private long CountEntities(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM dbe_entities";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    private long CountSources(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM dbe_sources";
+        return Convert.ToInt64(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
     // ---- Internal ----
 
     public void RecordRun(
@@ -642,11 +664,31 @@ public sealed class GoldTier
 
     // ---- Import from SQLite (one-way backfill into gold) ----
 
-    public void ImportFromSqlite(SqliteConnectionFactory sqliteFactory)
+    public ImportSummary ImportFromSqlite(SqliteConnectionFactory sqliteFactory, bool dryRun = false)
     {
         ArgumentNullException.ThrowIfNull(sqliteFactory);
 
         using var connection = sqliteFactory.OpenReadOnly();
+
+        if (dryRun)
+        {
+            var dry = new ImportSummary(
+                (int)CountEntities(connection),
+                Exists ? (int)CountGold("dbe_entities") : 0,
+                (int)CountMetrics(connection),
+                Exists ? (int)CountGold("dbe_metrics") : 0,
+                (int)CountSources(connection),
+                Exists ? (int)CountGold("dbe_sources") : 0,
+                (int)CountObservations(connection),
+                Exists ? (int)CountGold("dbe_observations") : 0,
+                Array.Empty<string>(),
+                DryRun: true);
+
+            _logger.Information(
+                "dry run: nothing written. source entities {E}, metrics {M}, sources {S}, observations {O}",
+                dry.EntitiesSource, dry.MetricsSource, dry.SourcesSource, dry.ObservationsSource);
+            return dry;
+        }
 
         // Natural-key maps: SQLite surrogate ids are never copied into gold.
         var sqliteMetricCodes = ReadIdMap(connection, "SELECT metric_id, metric_code FROM dbe_metrics");
@@ -663,10 +705,141 @@ public sealed class GoldTier
         var goldSourceIds = LoadSourceKeyToId();
         ImportObservations(connection, sqliteMetricCodes, goldMetricIds, sqliteEntityCodes, goldEntityIds, sqliteSourceKeys, goldSourceIds);
 
+        var summary = new ImportSummary(
+            (int)CountEntities(connection),
+            (int)CountGold("dbe_entities"),
+            (int)CountMetrics(connection),
+            (int)CountGold("dbe_metrics"),
+            (int)CountSources(connection),
+            (int)CountGold("dbe_sources"),
+            (int)CountObservations(connection),
+            (int)CountGold("dbe_observations"),
+            Mismatches(connection));
+
         _logger.Information(
             "Import from SQLite complete: {MetricCount} metrics, {ObservationCount} observations. " +
             "Derived aggregates are recomputed by the normal pipeline (extract --gold / lake build-gold).",
-            goldMetricIds.Count, CountObservations(connection));
+            summary.MetricsGold, summary.ObservationsGold);
+
+        return summary;
+    }
+
+    private int CountGold(string table)
+    {
+        if (!Exists) return 0;
+        using var connection = OpenReadOnly();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM {table}";
+        return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Natural-key differences between SQLite and gold, capped at five per table.</summary>
+    private IReadOnlyList<string> Mismatches(SqliteConnection sqlite)
+    {
+        var keys = new List<string>();
+        var entities = Missing(Keys(sqlite, "SELECT entity_code FROM dbe_entities"), Keys("SELECT entity_code FROM dbe_entities"));
+        var metrics = Missing(Keys(sqlite, "SELECT metric_code FROM dbe_metrics"), Keys("SELECT metric_code FROM dbe_metrics"));
+        var sources = Missing(
+            Keys(sqlite, "SELECT provider || '\u001f' || dataset || '\u001f' || indicator_code FROM dbe_sources"),
+            Keys("SELECT provider || '\u001f' || dataset || '\u001f' || indicator_code FROM dbe_sources"));
+
+        keys.AddRange(entities.Select(key => $"entity missing in gold: {key}"));
+        keys.AddRange(metrics.Select(key => $"metric missing in gold: {key}"));
+        keys.AddRange(sources.Select(key => $"source missing in gold: {key}"));
+        return keys;
+    }
+
+    private static IReadOnlyList<string> Missing(IReadOnlySet<string> source, IReadOnlySet<string> gold)
+        => source.Except(gold).OrderBy(key => key, StringComparer.Ordinal).Take(5).ToList();
+
+    private static HashSet<string> Keys(SqliteConnection connection, string sql)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0)) set.Add(reader.GetString(0));
+        }
+
+        return set;
+    }
+
+    private HashSet<string> Keys(string sql)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        if (!Exists) return set;
+        using var connection = OpenReadOnly();
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0)) set.Add(reader.GetString(0));
+        }
+
+        return set;
+    }
+
+    // ---- Silver backfill (used by `lake import-from-sqlite --write-silver`) ----
+
+    /// <summary>
+    /// Rebuilds silver partitions from the SQLite observations so <c>lake build-gold</c>
+    /// can read them. Units are already normalized in SQLite, so <c>unit</c> is copied
+    /// verbatim; bronze is not synthesized (it holds raw provider payloads).
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, int>> WriteSilverFromSqliteAsync(
+        SqliteConnectionFactory sqliteFactory,
+        SilverTier silver,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sqliteFactory);
+        ArgumentNullException.ThrowIfNull(silver);
+
+        using var connection = sqliteFactory.OpenReadOnly();
+        var metricCodes = ReadIdMap(connection, "SELECT metric_id, metric_code FROM dbe_metrics");
+
+        var byMetric = new Dictionary<string, List<ObservationRecord>>(StringComparer.Ordinal);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = """
+                SELECT o.metric_id, e.entity_code, e.entity_name, o.start_date, o.end_date,
+                       o.val, o.raw_val, o.unit, o.period_str, o.extracted_at
+                FROM dbe_observations o
+                JOIN dbe_entities e ON e.entity_id = o.entity_id
+                """;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (!metricCodes.TryGetValue(reader.GetInt32(0), out var code)) continue;
+
+                if (!byMetric.TryGetValue(code, out var rows))
+                {
+                    rows = new List<ObservationRecord>();
+                    byMetric[code] = rows;
+                }
+
+                rows.Add(new ObservationRecord(
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    DateOnly.ParseExact(reader.GetString(3), "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    DateOnly.ParseExact(reader.GetString(4), "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    reader.GetDouble(5),
+                    reader.IsDBNull(6) ? null : reader.GetDouble(6),
+                    reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+                    reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+                    DateTimeOffset.Parse(reader.GetString(9), CultureInfo.InvariantCulture)));
+            }
+        }
+
+        var counts = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        foreach (var (code, rows) in byMetric)
+        {
+            counts[code] = await silver.WriteAsync(code, rows, cancellationToken).ConfigureAwait(false);
+        }
+
+        return counts;
     }
 
     private static Dictionary<int, string> ReadIdMap(SqliteConnection connection, string sql)

@@ -94,6 +94,74 @@ public class ImportFromSqliteTests : IDisposable
         Assert.Equal(3, Scalar("SELECT COUNT(*) FROM dbe_observations"));
     }
 
+    [Fact]
+    public void DryRun_WritesNothingToGold()
+    {
+        SeedSqlite();
+        _gold.EnsureSchema();
+
+        var summary = _gold.ImportFromSqlite(_sqlite, dryRun: true);
+
+        Assert.True(summary.DryRun);
+        // Gold is untouched even though the source is populated.
+        Assert.Equal(0, Scalar("SELECT COUNT(*) FROM dbe_entities"));
+        Assert.Equal(0, Scalar("SELECT COUNT(*) FROM dbe_metrics"));
+        Assert.Equal(0, Scalar("SELECT COUNT(*) FROM dbe_sources"));
+        Assert.Equal(0, Scalar("SELECT COUNT(*) FROM dbe_observations"));
+        // Source counts are real, not aliases of the empty gold state.
+        Assert.Equal(85, summary.EntitiesSource);
+        Assert.Equal(26, summary.MetricsSource);
+        Assert.Equal(26, summary.SourcesSource);
+        Assert.Equal(3, summary.ObservationsSource);
+        Assert.Equal(0, summary.ObservationsGold);
+        Assert.False(summary.IsMatch);
+    }
+
+    [Fact]
+    public void Import_ReportsSourceVersusGoldParity()
+    {
+        SeedSqlite();
+        _gold.EnsureSchema();
+
+        var summary = _gold.ImportFromSqlite(_sqlite);
+
+        Assert.True(summary.IsMatch);
+        Assert.Equal(85, summary.EntitiesSource);
+        Assert.Equal(85, summary.EntitiesGold);
+        Assert.Equal(26, summary.MetricsSource);
+        Assert.Equal(26, summary.MetricsGold);
+        Assert.Equal(26, summary.SourcesSource);
+        Assert.Equal(26, summary.SourcesGold);
+        Assert.Equal(3, summary.ObservationsSource);
+        Assert.Equal(3, summary.ObservationsGold);
+        Assert.Empty(summary.MismatchKeys);
+    }
+
+    [Fact]
+    public async Task WriteSilver_ThenBuildGold_ReproducesObservations()
+    {
+        SeedSqlite();
+        _gold.EnsureSchema();
+        _gold.ImportFromSqlite(_sqlite);
+
+        var silver = new SilverTier(_lake, _logger);
+        var counts = await _gold.WriteSilverFromSqliteAsync(_sqlite, silver);
+
+        Assert.True(silver.HasPartition("gdp_usd"));
+        Assert.Equal(3, counts["gdp_usd"]);
+
+        // A fresh gold file rebuilt from the backfilled silver must match.
+        var rebuilt = new GoldTier(
+            Path.Combine(_dir, "rebuilt.duckdb"),
+            Path.Combine(TestPaths.RepoRoot, "sql", "duckdb", "schema.sql"),
+            _logger);
+        var catalog = MetricsCatalog.Load(TestPaths.ConfigFile("metrics.json"));
+        var seed = EntitySeed.Load(TestPaths.ConfigFile("entities.json"));
+        var rebuiltCounts = await rebuilt.RebuildFromSilverAsync(seed, catalog, silver, new[] { "gdp_usd" });
+
+        Assert.Equal(3, rebuiltCounts["gdp_usd"]);
+    }
+
     private sealed class FakeSource : ISeriesSource
     {
         public Task<IReadOnlyList<RawSeries>> FetchMetricSeriesAsync(
