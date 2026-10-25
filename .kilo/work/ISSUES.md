@@ -11,6 +11,17 @@ Plan of record: `.kilo/plans/1792630353409-sprint3-open-items-serving-store-and-
   flip the default together with a gold-aware Web fixture and a first-run path
   (`lake init` + `extract --gold`). The README currently documents the shipped
   behaviour (`auto`).
+- **Startup validation missing for strict `gold`.** `AnalyticsService` throws in its
+  constructor, but the Web host never resolves it before `app.Run()`, so a misconfigured
+  strict deployment fails on the first request instead of refusing to start.
+- **Analytics UI surface not built.** The Builder supports only `series`, `coverage`,
+  `snapshot`, `runs`; the planned `growth`, `ranking`, `correlation` and `freshness`
+  widgets are missing, as are the Overview freshness card and the Metrics
+  derived-share/latest-period additions. The methods and `/api/analytics/*` endpoints
+  exist and are tested.
+- **`--write-silver` backfill missing.** `lake import-from-sqlite` fills gold only; it
+  cannot materialise silver partitions, so `lake build-gold` has nothing to read after an
+  import.
 - **Backfill ergonomics and runbook missing.** Serving-mode wiring is done, but
   `lake import-from-sqlite` still has no `--dry-run` and prints no source-vs-gold
   parity counts, and `docs/DEPLOY.md` has no migration sequence

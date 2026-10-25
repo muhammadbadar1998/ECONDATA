@@ -1,6 +1,6 @@
 # EconData — Architecture & Codebase Explainer
 
-Developer/architecture manual for the .NET 10 + SQLite implementation of the
+Developer/architecture manual for the .NET 10 + SQLite/DuckDB implementation of the
 Global Economic Data Extraction Pipeline.
 
 ---
@@ -11,9 +11,13 @@ Global Economic Data Extraction Pipeline.
 | :--- | :--- |
 | Build | `dotnet build EconData.slnx` |
 | Init SQLite schema | `dotnet run --project src/EconData.Cli -- init-db` |
+| Init gold schema | `dotnet run --project src/EconData.Cli -- lake init` |
 | Check schema | `dotnet run --project src/EconData.Cli -- check-db` |
 | Readiness check | `dotnet run --project src/EconData.Cli -- doctor` |
 | Full pipeline into SQLite | `dotnet run --project src/EconData.Cli -- extract --metrics all --db` |
+| Full pipeline into the lake | `dotnet run --project src/EconData.Cli -- extract --metrics all --bronze --silver --gold` |
+| Lake status / rebuild | `dotnet run --project src/EconData.Cli -- lake status` · `... lake rebuild` |
+| Backfill gold from SQLite | `dotnet run --project src/EconData.Cli -- lake import-from-sqlite` |
 | Vectorize catalog | `dotnet run --project src/EconData.Cli -- vectorize` |
 | Ask a question | `dotnet run --project src/EconData.Cli -- chat --question "..."` |
 | Tests | `dotnet test EconData.slnx` |
@@ -31,11 +35,13 @@ config/
   entities.json                # canonical entities + aliases + memberships
   appsettings.json             # non-secret defaults (env vars override)
 sql/sqlite/schema.sql          # normalized SQLite DDL + views
+sql/duckdb/schema.sql          # DuckDB gold DDL + views
 native/sqlite-vec/             # vendored sqlite-vec loadable extension (v0.1.9)
 src/EconData.Core/             # class library: all domain + services
+src/EconData.Core/Lake/        # bronze/silver Parquet + DuckDB gold
 src/EconData.Cli/              # console app: command dispatch (Program.cs)
 tests/EconData.Tests/          # xUnit tests
-output/                        # econdata.db + pipeline/chat logs (gitignored)
+output/                        # econdata.db, lake/, logs (gitignored)
 ```
 
 ### Core modules (Python → C#)
@@ -60,7 +66,7 @@ output/                        # econdata.db + pipeline/chat logs (gitignored)
 ## Idempotent UPSERT strategy
 
 The pipeline is safe for recurring runs; it never wipes existing data and
-incrementally upserts via SQLite `ON CONFLICT` clauses keyed on stable natural keys.
+incrementally upserts via `ON CONFLICT` clauses keyed on stable natural keys.
 
 - `dbe_observations` dedupe key: `(metric_id, entity_id, start_date, end_date)`
   (`DO UPDATE` on `val`, `raw_val`, `unit`, `period_str`, `extracted_at`).
@@ -68,7 +74,12 @@ incrementally upserts via SQLite `ON CONFLICT` clauses keyed on stable natural k
   `dbe_metric_synonyms`, `dbe_sources`, `dbe_entity_membership`) are upserted from
   `config/entities.json` + `config/metrics.json`.
 - Unknown provider codes are registered deterministically (never fabricated names).
-- Bulk upserts are chunked to stay under SQLite's bound-parameter limit.
+- Bulk upserts are chunked to stay under the bound-parameter limit of the target store
+  (SQLite **and** DuckDB).
+- Gold (DuckDB) uses the same natural keys but binds **positional `?`** parameters and
+  declares no `FOREIGN KEY` constraints — DuckDB's `ON CONFLICT` rewrite trips them.
+  Stale rows are reconciled with `lake rebuild` (temporary file, validate, swap), never
+  with `DELETE`.
 
 Typed `DATE` ranges (`start_date`, `end_date`, stored as ISO-8601 text) replace the
 old free-text period column, so chronological ordering is correct.
@@ -145,6 +156,20 @@ Non-entity codes (`ANNUAL`, `NA`, ...) are refused. No human name is fabricated
 from period/series strings.
 
 ---
+
+## Serving model (SQLite vs DuckDB gold)
+
+`ECONDATA_SERVING_STORE` selects where **structured analytics** read:
+
+| Value | Behaviour |
+| :--- | :--- |
+| `auto` (default) | Gold when `output/lake/gold/econdata.duckdb` exists, else SQLite |
+| `gold` | Gold only; fail fast if it is missing |
+| `sqlite` | SQLite only, even when gold exists |
+
+SQLite always holds the `sqlite-vec` index, so `vectorize` and chat retrieval use it
+regardless of mode. Gold holds the structured `dbe_*` tables, views, and derived
+aggregates; analytics opens it read-only (`ACCESS_MODE=READ_ONLY`).
 
 ## Semantic catalog & vector search
 

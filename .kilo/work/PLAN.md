@@ -18,7 +18,12 @@ Tier: **T2**; T3 only if the strict-mode semantics change.
 
 ## Open
 
+- Startup validation: resolve `AnalyticsService` before `app.Run()` so strict `gold`
+  refuses to start instead of failing the first request.
+- Analytics UI: Builder widgets (`growth`, `ranking`, `correlation`, `freshness`), an
+  Overview freshness card, and Metrics derived-share/latest-period.
 - `lake import-from-sqlite --dry-run` + source-vs-gold parity counts.
+- `--write-silver` backfill so `lake build-gold` works after an import.
 - Backfill runbook in `docs/DEPLOY.md`.
 - Reproduce and fix the intermittent Core test failure (`ISSUES.md`).
 - **Serving-default decision mismatch.** The approved Sprint 3 decision was

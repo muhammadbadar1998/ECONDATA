@@ -13,8 +13,11 @@ Done:
 - Format drift fixed (`6aa2976`); README/AI-first/CHANGELOG refreshed (`2b2d40f`).
 
 Remaining:
-- `lake import-from-sqlite --dry-run` + source-vs-gold parity counts, with
-  non-zero exit on mismatch.
+- Resolve `AnalyticsService` before `app.Run()` so strict `gold` fails at startup.
+- Analytics UI: Builder widgets (`growth`, `ranking`, `correlation`, `freshness`),
+  Overview freshness card, Metrics derived-share/latest-period.
+- `lake import-from-sqlite --dry-run` + source-vs-gold parity counts.
+- `--write-silver` backfill so `lake build-gold` works after an import.
 - Backfill runbook in `docs/DEPLOY.md`.
 - Reproduce and fix the intermittent Core test failure recorded in `ISSUES.md`.
 

@@ -1,8 +1,10 @@
 # AGENTS.md
 
 EconData is a C# / .NET 10 pipeline that pulls macroeconomic indicators from DBnomics,
-resolves entities and units, and loads them idempotently into a local SQLite database, with an
-optional `sqlite-vec` RAG catalog, a CLI, and a localhost Blazor dashboard.
+resolves entities and units, and loads them idempotently into a local SQLite database
+and/or a DuckDB gold tier through an optional bronze → silver → gold lake. It includes a
+tool-first chat layer (fixed, parameterized queries) with a vector-backed RAG path,
+analytics APIs, a CLI, and a localhost Blazor dashboard.
 
 - ALWAYS USE PARALLEL TOOLS WHEN APPLICABLE.
 - The default branch in this repo is `main`.
@@ -14,16 +16,18 @@ optional `sqlite-vec` RAG catalog, a CLI, and a localhost Blazor dashboard.
 
 | Path | Purpose |
 |---|---|
-| `src/EconData.Core/` | Class library: ETL, SQLite, analytics, vector catalog, pipeline runner. All domain logic lives here. |
+| `src/EconData.Core/` | Class library: ETL, SQLite, DuckDB lake tiers, analytics, vector catalog, chat orchestration, pipeline runner. All domain logic lives here. |
+| `src/EconData.Core/Lake/` | Bronze/silver Parquet tiers and DuckDB gold (`GoldTier`), lake paths and schema bootstrap. |
 | `src/EconData.Cli/` | Console entry point (`Program.cs` command dispatch, `Cli/PipelineRunner`). |
 | `src/EconData.Web/` | Blazor Server UI + Minimal API. Localhost only, single user, one pipeline job at a time. |
-| `tests/EconData.Tests/` | xUnit tests for Core (hermetic temporary SQLite, real `sqlite-vec` extension). |
+| `tests/EconData.Tests/` | xUnit tests for Core (hermetic temporary SQLite and DuckDB, real `sqlite-vec` extension). |
 | `tests/EconData.Web.Tests/` | Web API, job, and builder tests. |
 | `config/metrics.json` | Metric catalog. Adding a metric must not require a code change. |
 | `config/entities.json` | Canonical entities, aliases, memberships. |
-| `sql/sqlite/schema.sql` | Normalized DDL + views. Schema changes go here first. |
+| `sql/sqlite/schema.sql` | SQLite DDL + views (structured store and legacy path). |
+| `sql/duckdb/schema.sql` | DuckDB gold DDL + views: sequence-backed ids, fully qualified columns. |
 | `native/sqlite-vec/<rid>/` | Vendored `sqlite-vec` loadable extension (v0.1.9). Do not rebuild or replace it. |
-| `output/` | `econdata.db`, logs, dashboards — gitignored. Never commit it. |
+| `output/` | `econdata.db`, `lake/` (bronze/silver/gold), logs, dashboards — gitignored. Never commit it. |
 
 Read [`EXPLAINER.md`](./EXPLAINER.md) for module-level architecture and
 [`docs/DEV_GUIDE.md`](./docs/DEV_GUIDE.md) before touching Web services, the builder, or
@@ -39,6 +43,7 @@ configuration plumbing.
 - **Init schema**: `dotnet run --project src/EconData.Cli -- init-db`
 - **Check schema**: `dotnet run --project src/EconData.Cli -- check-db`
 - **Pipeline**: `dotnet run --project src/EconData.Cli -- extract --metrics all --db`
+- **Lake**: `lake init` (gold schema), `lake status`, `lake build-gold`, `lake rebuild` (rebuild-and-swap), `lake import-from-sqlite` (one-way backfill)
 - **Web UI**: `dotnet run --project src/EconData.Web` → `http://127.0.0.1:5000`
 - **Vectorize / chat**: require a running Ollama (`ollama serve`, `nomic-embed-text`); they are not needed for the test suite.
 
@@ -51,7 +56,8 @@ Before saying an implementation is ready, run the smallest relevant checks for e
 | Core / CLI / cross-cutting | `dotnet build EconData.slnx`, `dotnet test EconData.slnx --filter "FullyQualifiedName~EconData.Tests"` |
 | Web | `dotnet build EconData.slnx`, `dotnet test EconData.slnx --filter "FullyQualifiedName~EconData.Web.Tests"` |
 | Formatting | `dotnet format EconData.slnx --verify-no-changes` |
-| Schema or data-path change | `dotnet run --project src/EconData.Cli -- check-db` against a scratch `--db-path` |
+| Schema or data-path change | `dotnet run --project src/EconData.Cli -- check-db` against a scratch `--db-path`; for gold, `lake status` and `doctor` against a scratch `ECONDATA_LAKE_DIR` |
+| Analytics or lake change | Tests must cover **both** SQLite and DuckDB (engine parity), e.g. `--filter "FullyQualifiedName~GoldAnalytics|FullyQualifiedName~LakeTier"` |
 
 If a check cannot run (for example no .NET SDK or no Ollama in the environment), state exactly which check was not run — never claim green without running it.
 
@@ -65,16 +71,37 @@ If a check cannot run (for example no .NET SDK or no Ollama in the environment),
 - Units are normalized to `base_unit` through the declarative `unit_normalization` expression in `config/metrics.json`. No ad-hoc arithmetic in code.
 - Unknown provider codes are registered deterministically — never fabricate entity names.
 - New indicators ship as `config/metrics.json` entries, not new extractor branches. If a metric needs code, explain why in the plan.
+- **Gold is DuckDB**: never add destructive `DELETE`/`DROP` to the load path. Reconcile with
+  `lake rebuild` (build into a temporary file, validate, then swap).
+- DuckDB has no auto-increment integer primary keys — use `CREATE SEQUENCE` plus
+  `DEFAULT nextval(...)`. DuckDB also rejects unqualified columns in joins; qualify every
+  column in views and queries.
+- `DuckDB.NET` binds **only positional `?`** parameters and has no `AddWithValue`; construct
+  `DuckDBParameter` objects. Chunk writes under DuckDB's bound-parameter limit too.
+- Do not declare `FOREIGN KEY` constraints in gold: DuckDB's `ON CONFLICT` rewrite trips
+  them. Natural `UNIQUE` keys provide the stability.
+- Gold dates are VARCHAR; cast before DuckDB date functions
+  (`strftime(CAST(start_date AS TIMESTAMP), '%Y')`).
 
 ### SQL and vector storage
 
-- Schema changes land in `sql/sqlite/schema.sql` and must work on a fresh `init-db` **and** on an existing database.
-- `sqlite-vec` tables are 768-dim cosine; keep embedding model, dimension, and distance metric consistent between vectorizer and query path.
-- Load the native extension through the configured `ECONDATA_SQLITE_VEC_PATH`; never hardcode a platform RID.
+- Schema changes land in the matching DDL: `sql/sqlite/schema.sql` for SQLite and
+  `sql/duckdb/schema.sql` for gold. SQLite changes must work on a fresh `init-db` **and** on
+  an existing database (additive `ALTER TABLE` migrations live in `SchemaInitializer`).
+- `sqlite-vec` tables are 768-dim cosine and stay in **SQLite**; gold holds structured data
+  only. Keep embedding model, dimension, and distance metric consistent between vectorizer
+  and query path.
+- Load the native extension through the configured `ECONDATA_SQLITE_VEC_PATH`; never
+  hardcode a platform RID.
+- Analytics opens gold read-only (`ACCESS_MODE=READ_ONLY`); the single Web job is the only
+  writer.
 
 ### Configuration
 
 - Precedence is `config/appsettings.json` → environment variables → safe defaults. New settings follow the same shape and are documented in `README.md` and `docs/DEV_GUIDE.md`.
+- Serving store: `ECONDATA_SERVING_STORE` (`auto | gold | sqlite`) selects where structured
+  analytics read. SQLite stays required for `sqlite-vec` and chat; `auto` prefers gold when
+  the file exists. `ECONDATA_LAKE_DIR` relocates the lake.
 - No secrets in `config/`; `.env` is gitignored.
 
 ### Web / Blazor
@@ -82,6 +109,15 @@ If a check cannot run (for example no .NET SDK or no Ollama in the environment),
 - The app is localhost-only and single-user. One pipeline job at a time; cancellation must stay responsive.
 - Browser assets are vendored for offline use — do not add a CDN reference.
 - Long-running work goes through the existing job/runner services, not ad-hoc `Task.Run` in a component.
+
+### Chat and analytics
+
+- Chat is tool-first: `ChatOrchestrator` routes objective questions to six fixed,
+  parameterized `ChatTools` and explanatory questions to the vector RAG path. No raw SQL or
+  text-to-SQL; arguments are validated before dispatch.
+- Analytics reads through `AnalyticsService`, which resolves SQLite or DuckDB gold from
+  `ECONDATA_SERVING_STORE`. Endpoints live under `/api/analytics/*`; the JSON contract is
+  part of the public API and must stay backward compatible.
 
 ## Style Guide
 
@@ -100,8 +136,9 @@ If a check cannot run (for example no .NET SDK or no Ollama in the environment),
 ## Testing
 
 - You MUST avoid using mocks as much as possible. Tests MUST exercise real implementation — do not duplicate production logic inside a test.
-- Tests are hermetic: temporary SQLite files under a per-test directory, fake HTTP handlers instead of live DBnomics calls, no Ollama, no network.
+- Tests are hermetic: temporary SQLite and DuckDB files under a per-test directory, fake HTTP handlers instead of live DBnomics calls, no Ollama, no network.
 - The vectorizer test uses the real `sqlite-vec` extension — keep it that way.
+- Analytics and lake features must be exercised on **both** SQLite and DuckDB — engine-specific SQL otherwise fails only in production.
 - Write the test before the implementation whenever the behavior is testable that way.
 
 ## Markdown Tables
