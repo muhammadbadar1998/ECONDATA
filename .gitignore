@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+!native/sqlite-vec/linux-x64/vec0.so
 .Python
 env/
 build/
