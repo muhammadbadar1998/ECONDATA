@@ -113,6 +113,8 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+_ = app.Services.GetRequiredService<AnalyticsService>();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

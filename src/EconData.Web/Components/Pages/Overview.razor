@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @inject HttpClient Http
 
+@using System.Text.Json
+@using EconData.Web.Services
+
 <PageTitle>Overview</PageTitle>
 
 <h1>EconData Overview</h1>
@@ -51,6 +54,23 @@ else
         </div>
     }
 
+    <div class="card bg-light mb-3">
+        <div class="card-header">Freshness</div>
+        <div class="card-body">
+<p class="card-text">
+                @if (_freshness is not null && _freshness.Count > 0)
+                {
+                    @: <strong>Stale metrics (lag > 2 years):</strong> @( _freshness.Count(f => f.LagYears > 2 || f.LagYears is null) )
+                    @: | <strong>Newest period:</strong> @(_freshness.Max(f => f.LatestPeriod) ?? "none")
+                }
+                else
+                {
+                    <em>No freshness data available</em>
+                }
+            </p>
+        </div>
+    </div>
+
     <h2 class="mt-4">Latest pipeline run</h2>
     @if (_stats.LastRunStatus is null)
     {
@@ -69,6 +89,7 @@ else
     private OverviewStats? _stats;
     private LakeStatus? _lake;
     private List<Tile> _tiles = new();
+    private IReadOnlyList<FreshnessDto>? _freshness;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -92,7 +113,16 @@ else
                 new Tile("Embeddings", _stats.EmbeddingCount.ToString("N0")),
                 new Tile("Memberships", _stats.MembershipCount.ToString("N0")),
             };
-            StateHasChanged();
+        }
+
+        // Freshness is supplementary: a failure here must not break the overview.
+        try
+        {
+            _freshness = await Http.GetFromJsonAsync<IReadOnlyList<FreshnessDto>>("api/analytics/freshness");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            _freshness = null;
         }
     }
 

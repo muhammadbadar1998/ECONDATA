@@ -5,7 +5,12 @@ namespace EconData.Web.Services;
 public sealed record DashboardWidgetConfig(
     [property: JsonPropertyName("entity")] string? Entity,
     [property: JsonPropertyName("metric")] string? Metric,
-    [property: JsonPropertyName("category")] string? Category);
+    [property: JsonPropertyName("category")] string? Category,
+    [property: JsonPropertyName("kind")] string? Kind,
+    [property: JsonPropertyName("period")] string? Period,
+    [property: JsonPropertyName("direction")] string? Direction,
+    [property: JsonPropertyName("metric_a")] string? MetricA,
+    [property: JsonPropertyName("metric_b")] string? MetricB);
 
 public sealed record DashboardWidget(
     [property: JsonPropertyName("id")] string Id,

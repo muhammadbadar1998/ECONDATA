@@ -40,6 +40,10 @@
                 <option value="coverage">Coverage (bar)</option>
                 <option value="snapshot">Latest value by metric (bar)</option>
                 <option value="runs">Pipeline run duration seconds (bar)</option>
+                <option value="growth">Growth (yoy/cagr)</option>
+                <option value="ranking">Ranking</option>
+                <option value="correlation">Correlation</option>
+                <option value="freshness">Freshness</option>
             </select>
         </div>
         @if (_newType is "series" or "snapshot")
@@ -53,12 +57,49 @@
                     }
                 </select>
             </div>
-        }
-        @if (_newType == "series")
+        }  // close _newType == "series"
+        @if (_newType == "growth")
         {
             <div>
-                <label class="form-label small mb-1">Metric</label>
-                <select class="form-select form-select-sm" @bind="_newMetric">
+                <label class="form-label small mb-1">Kind</label>
+                <select class="form-select form-select-sm" @bind="_newKind">
+                    <option value="yoy">Year-over-year</option>
+                    <option value="cagr">Compound annual growth rate</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label small mb-1">Periods</label>
+                <input class="form-control form-control-sm" @bind="_newPeriods" type="number" min="1" />
+            </div>
+        }
+        else if (_newType == "ranking")
+        {
+            <div>
+                <label class="form-label small mb-1">Period</label>
+                <input class="form-control form-control-sm" @bind="_newPeriod" type="text" placeholder="2024-01-01" />
+            </div>
+            <div>
+                <label class="form-label small mb-1">Direction</label>
+                <select class="form-select form-select-sm" @bind="_newDirection">
+                    <option value="desc">Descending</option>
+                    <option value="asc">Ascending</option>
+                </select>
+            </div>
+        }
+        else if (_newType == "correlation")
+        {
+            <div>
+                <label class="form-label small mb-1">Metric A</label>
+                <select class="form-select form-select-sm" @bind="_newMetricA">
+                    @foreach (var metric in _metrics)
+                    {
+                        <option value="@metric.Code">@metric.Code - @metric.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label small mb-1">Metric B</label>
+                <select class="form-select form-select-sm" @bind="_newMetricB">
                     @foreach (var metric in _metrics)
                     {
                         <option value="@metric.Code">@metric.Code - @metric.Name</option>
@@ -67,6 +108,27 @@
             </div>
         }
         <button class="btn btn-outline-primary" @onclick="AddWidgetAsync" disabled="@(_metrics.Count == 0)">Add widget</button>
+            {
+                <div>
+                    <label class="form-label small mb-1">Metric A</label>
+                    <select class="form-select form-select-sm" @bind="_newMetricA">
+                        @foreach (var metric in _metrics)
+                        {
+                            <option value="@metric.Code">@metric.Code - @metric.Name</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label small mb-1">Metric B</label>
+                    <select class="form-select form-select-sm" @bind="_newMetricB">
+                        @foreach (var metric in _metrics)
+                        {
+                            <option value="@metric.Code">@metric.Code - @metric.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <button class="btn btn-outline-primary" @onclick="AddWidgetAsync" disabled="@(_metrics.Count == 0)">Add widget</button>
         <p class="text-muted small">Widgets autosave to <code>output/dashboards.json</code> and reload on reopen. Drag the header to move a card; drag the corner to resize.</p>
     </div>
 </div>
@@ -162,6 +224,12 @@ else
     private string _newType = "series";
     private string? _newEntity = "USA";
     private string? _newMetric = "gdp_usd";
+    private string? _newKind; // growth: yoy/cagr
+    private int _newPeriods = 10; // growth: number of periods
+    private string? _newPeriod; // ranking: period string (e.g. "2024-01-01")
+    private string? _newDirection; // ranking: asc/desc
+    private string? _newMetricA; // correlation: first metric
+    private string? _newMetricB; // correlation: second metric
     private string? _editingId;
     private string _editTitle = string.Empty;
     private string? _editEntity;
@@ -192,6 +260,12 @@ else
         }
 
         await LoadAllWidgetDataAsync();
+        _newKind = "yoy";
+        _newPeriods = 10;
+        _newPeriod = "2024-01-01";
+        _newDirection = "desc";
+        _newMetricA = "gdp_usd";
+        _newMetricB = "population";
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -304,6 +378,10 @@ else
                 "coverage" => await BuildCoverageOptionAsync(widget),
                 "snapshot" => await BuildSnapshotOptionAsync(widget),
                 "runs" => await BuildRunsOptionAsync(widget),
+                "growth" => await BuildGrowthOptionAsync(widget),
+                "ranking" => await BuildRankingOptionAsync(widget),
+                "correlation" => await BuildCorrelationOptionAsync(widget),
+                "freshness" => await BuildFreshnessOptionAsync(widget),
                 _ => null
             };
 
@@ -390,6 +468,75 @@ else
             ordered.Select(run => run.ExecutionSeconds).ToList());
     }
 
+    private async Task<object?> BuildGrowthOptionAsync(DashboardWidget widget)
+    {
+        if (string.IsNullOrEmpty(widget.Config.Entity) || string.IsNullOrEmpty(widget.Config.Metric))
+        {
+            return null;
+        }
+
+        var kind = string.IsNullOrEmpty(widget.Config.Kind) ? "yoy" : widget.Config.Kind;
+        var points = await Http.GetFromJsonAsync<IReadOnlyList<GrowthPointDto>>(
+            $"api/analytics/growth?metric={Uri.EscapeDataString(widget.Config.Metric)}&entity={Uri.EscapeDataString(widget.Config.Entity)}&kind={Uri.EscapeDataString(kind)}")
+            ?? Array.Empty<GrowthPointDto>();
+        return LineOption(
+            widget.Title,
+            points.Select(point => point.Period).ToList(),
+            points.Select(point => point.GrowthPct).ToList(),
+            "Growth %");
+    }
+
+    private async Task<object?> BuildRankingOptionAsync(DashboardWidget widget)
+    {
+        if (string.IsNullOrEmpty(widget.Config.Metric) || string.IsNullOrEmpty(widget.Config.Period))
+        {
+            return null;
+        }
+
+        var direction = string.IsNullOrEmpty(widget.Config.Direction) ? "desc" : widget.Config.Direction;
+        var rows = await Http.GetFromJsonAsync<IReadOnlyList<RankingRowDto>>(
+            $"api/analytics/ranking?metric={Uri.EscapeDataString(widget.Config.Metric)}&period={Uri.EscapeDataString(widget.Config.Period)}&direction={Uri.EscapeDataString(direction)}&limit=10")
+            ?? Array.Empty<RankingRowDto>();
+        return BarOption(
+            widget.Title,
+            widget.Config.Metric,
+            rows.Select(row => row.EntityCode).ToList(),
+            rows.Select(row => row.Value).ToList());
+    }
+
+    private async Task<object?> BuildCorrelationOptionAsync(DashboardWidget widget)
+    {
+        if (string.IsNullOrEmpty(widget.Config.MetricA) || string.IsNullOrEmpty(widget.Config.MetricB)
+            || string.IsNullOrEmpty(widget.Config.Period))
+        {
+            return null;
+        }
+
+        var rows = await Http.GetFromJsonAsync<IReadOnlyList<CorrelationResult>>(
+            $"api/analytics/correlation?metricA={Uri.EscapeDataString(widget.Config.MetricA)}&metricB={Uri.EscapeDataString(widget.Config.MetricB)}&period={Uri.EscapeDataString(widget.Config.Period)}")
+            ?? Array.Empty<CorrelationResult>();
+        return BarOption(
+            widget.Title,
+            "Correlation",
+            rows.Select(row => row.Period).ToList(),
+            rows.Select(row => row.Correlation).ToList());
+    }
+
+    private async Task<object> BuildFreshnessOptionAsync(DashboardWidget widget)
+    {
+        var rows = await Http.GetFromJsonAsync<IReadOnlyList<FreshnessDto>>("api/analytics/freshness")
+            ?? Array.Empty<FreshnessDto>();
+        var stale = rows
+            .OrderByDescending(row => row.LagYears ?? int.MaxValue)
+            .Take(12)
+            .ToList();
+        return BarOption(
+            widget.Title,
+            "Lag (years)",
+            stale.Select(row => row.MetricCode).ToList(),
+            stale.Select(row => (double)(row.LagYears ?? 0)).ToList());
+    }
+
     private static object LineOption(string title, IReadOnlyList<string> labels, IReadOnlyList<double> values, string? name)
         => new
         {
@@ -452,6 +599,10 @@ else
                 "snapshot" => $"{_newEntity} - latest values",
                 "coverage" => "Observations by metric",
                 "runs" => "Pipeline run duration (seconds)",
+                "growth" => $"{_newEntity} - {_newMetric} {_newKind} growth",
+                "ranking" => $"{_newEntity} - top {_newMetric}",
+                "correlation" => $"{_newMetricA} vs {_newMetricB}",
+                "freshness" => "Metric freshness",
                 _ => "Widget"
             };
         var widget = new DashboardWidget(
@@ -465,7 +616,12 @@ else
             new DashboardWidgetConfig(
                 _newType is "series" or "snapshot" ? _newEntity : null,
                 _newType == "series" ? _newMetric : null,
-                null));
+                null,
+                _newType,
+                _newType == "growth" ? _newKind : null,
+                _newType == "ranking" ? _newPeriod : null,
+                _newType == "correlation" ? _newMetricA : null,
+                _newType == "correlation" ? _newMetricB : null));
 
         _layout = _layout with { Widgets = _layout.Widgets.Append(widget).ToList() };
         _structureVersion++;

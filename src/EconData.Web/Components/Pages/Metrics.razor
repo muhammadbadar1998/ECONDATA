@@ -27,31 +27,33 @@ else
                     <th>Base Unit</th>
                     <th>Entities</th>
                     <th>Observations</th>
-                    <th>Year Range</th>
+                    <th>Derived</th>
+                    <th>Latest period</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var row in _coverage)
                 {
-                    <tr>
-                        <td><code>@row.MetricCode</code></td>
-                        <td>@row.MetricName</td>
-                        <td>@row.Category</td>
-                        <td>@row.Frequency</td>
-                        <td>@row.BaseUnit</td>
-                        <td>@row.EntityCount</td>
-                        <td>@row.ObservationCount.ToString("N0")</td>
-                        <td>
-                            @if (row.MinPeriod != null && row.MaxPeriod != null)
-                            {
-                                @($"{row.MinPeriod} - {row.MaxPeriod}")
-                            }
-                            else
-                            {
-                                <em>No data</em>
-                            }
-                        </td>
-                    </tr>
+<tr>
+                    <td><code>@row.MetricCode</code></td>
+                    <td>@row.MetricName</td>
+                    <td>@row.Category</td>
+                    <td>@row.Frequency</td>
+                    <td>@row.BaseUnit</td>
+                    <td>@row.EntityCount</td>
+                    <td>@row.ObservationCount.ToString("N0")</td>
+                    <td>@row.DerivedObservationCount</td>
+                    <td>
+                        @if (row.MinPeriod != null && row.MaxPeriod != null)
+                        {
+                            @($"{row.MaxPeriod}")
+                        }
+                        else
+                        {
+                            <em>No data</em>
+                        }
+                    </td>
+                </tr>
                 }
             </tbody>
         </table>

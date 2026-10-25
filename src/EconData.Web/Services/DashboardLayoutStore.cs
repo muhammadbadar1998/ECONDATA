@@ -152,16 +152,16 @@ public sealed class DashboardLayoutStore
         {
             new DashboardWidget(
                 "w_series", "series", "USA - GDP (current US$)", 0, 0, 6, 3,
-                new DashboardWidgetConfig("USA", "gdp_usd", null)),
+                new DashboardWidgetConfig("USA", "gdp_usd", null, null, null, null, null, null)),
             new DashboardWidget(
                 "w_coverage", "coverage", "Observations by metric", 6, 0, 6, 3,
-                new DashboardWidgetConfig(null, null, null)),
+                new DashboardWidgetConfig(null, null, null, null, null, null, null, null)),
             new DashboardWidget(
                 "w_snapshot", "snapshot", "USA - latest values", 0, 3, 6, 3,
-                new DashboardWidgetConfig("USA", null, null)),
+                new DashboardWidgetConfig("USA", null, null, null, null, null, null, null)),
             new DashboardWidget(
                 "w_runs", "runs", "Execution seconds per run", 6, 3, 6, 3,
-                new DashboardWidgetConfig(null, null, null)),
+                new DashboardWidgetConfig(null, null, null, null, null, null, null, null)),
         });
 
     private static bool TooLong(string? value) => value is { Length: > 64 };
