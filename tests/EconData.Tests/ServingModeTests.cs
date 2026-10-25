@@ -30,7 +30,6 @@ public class ServingModeTests : IDisposable
     public void Dispose()
     {
         (_logger as IDisposable)?.Dispose();
-        SqliteConnection.ClearAllPools();
         if (Directory.Exists(_dir))
         {
             Directory.Delete(_dir, recursive: true);

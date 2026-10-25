@@ -25,7 +25,6 @@ public class PipelineProgressTests : IDisposable
     public void Dispose()
     {
         (_logger as IDisposable)?.Dispose();
-        SqliteConnection.ClearAllPools();
         foreach (var suffix in DatabaseFileSuffixes)
         {
             var path = _dbPath + suffix;

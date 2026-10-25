@@ -411,6 +411,6 @@ public class LakeTierTests : IDisposable
 
         public GoldTier Value { get; }
 
-        public void Dispose() => SqliteConnection.ClearAllPools();
+        public void Dispose() { }
     }
 }
